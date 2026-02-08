@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+@theme {
+  --color-healsync-indigo: #5D5FEF;
+  --color-healsync-mint: #60EAB1;
+  --color-healsync-violet: #8485FF;
+  --color-healsync-grey: #6B7280;
+  --color-healsync-bg: #F9FAFB;
+  --color-healsync-border: #E5E7EB;
+
+  --shadow-healsync: 0 10px 40px -10px rgba(93, 95, 239, 0.1);
+  --shadow-healsync-hover: 0 20px 50px -12px rgba(93, 95, 239, 0.2);
+}
+
+@layer base {
+  html {
+    font-size: 18px;
+    /* Increased from default 16px to scale all rem units */
+  }
+
+  body {
+    @apply bg-healsync-bg text-[#1F2937] antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply py-4 px-10 bg-healsync-indigo text-white rounded-2xl font-black hover:bg-healsync-violet hover:shadow-healsync transition-all duration-300 text-base flex items-center justify-center gap-3;
+  }
+
+  .healsync-card {
+    @apply bg-white/80 backdrop-blur-md border border-white/40 rounded-[3rem] shadow-healsync overflow-hidden transition-all duration-500 hover:shadow-healsync-hover hover:-translate-y-1.5;
+  }
+
+  .input-field {
+    @apply px-6 py-5 bg-white/50 border border-healsync-border rounded-2xl focus:outline-none focus:ring-2 focus:ring-healsync-indigo/20 focus:border-healsync-indigo text-lg font-medium transition-all;
+  }
+
+  .status-pill {
+    @apply px-6 py-2 rounded-full text-[12px] font-black uppercase tracking-widest border border-transparent;
+  }
+
+  .glass-panel {
+    @apply bg-white/60 backdrop-blur-xl border border-white/40 rounded-[2.5rem] shadow-healsync;
+  }
+}
+
+/* Custom scrollbar for a cleaner look */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #E5E7EB;
+  border-radius: 10px;
+  border: 2px solid #F9FAFB;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #D1D5DB;
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-20px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Entry animations */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
