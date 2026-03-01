@@ -1,38 +1,64 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { FaUsers, FaUserMd, FaCalendarCheck, FaChartLine, FaPlus, FaTrash, FaEdit, FaBoxOpen, FaCheckCircle, FaTimesCircle, FaHospital } from 'react-icons/fa';
+import { useSearchParams } from 'react-router-dom';
+import {
+    FaUsers, FaUserMd, FaCalendarCheck, FaChartLine,
+    FaPlus, FaTrash, FaEdit, FaBoxOpen,
+    FaCheckCircle, FaTimesCircle, FaHospital,
+    FaClock, FaCheck, FaUserShield, FaEnvelope, FaPhone
+} from 'react-icons/fa';
 
 const AdminDashboard = () => {
+    const [searchParams] = useSearchParams();
     const [stats, setStats] = useState({ doctors: 0, appointments: 0, revenue: 0, patients: 0 });
     const [pendingDoctors, setPendingDoctors] = useState([]);
+    const [approvedDoctors, setApprovedDoctors] = useState([]);
+    const [allUsers, setAllUsers] = useState([]);
     const [products, setProducts] = useState([]);
     const [newProduct, setNewProduct] = useState({ name: '', price: '', category: 'Medicines', description: '', icon: 'FaCapsules', countInStock: 10 });
-    const [activeTab, setActiveTab] = useState('stats');
+    const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'stats');
+    const [actionLoading, setActionLoading] = useState(null);
+
+    // Sync tab from URL whenever navbar link changes
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab) setActiveTab(tab);
+    }, [searchParams]);
+
+    const fetchData = async () => {
+        try {
+            const statsRes = await axios.get('/api/admin/stats');
+            setStats(statsRes.data);
+
+            const pendingRes = await axios.get('/api/admin/doctors/pending');
+            setPendingDoctors(pendingRes.data);
+
+            const approvedRes = await axios.get('/api/admin/doctors/approved');
+            setApprovedDoctors(approvedRes.data);
+
+            const usersRes = await axios.get('/api/admin/users');
+            setAllUsers(usersRes.data);
+
+            const prodData = await axios.get('/api/products');
+            setProducts(prodData.data);
+        } catch (err) {
+            console.error("Error fetching admin data:", err);
+        }
+    };
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const statsRes = await axios.get('/api/admin/stats');
-                setStats(statsRes.data);
-
-                const pendingRes = await axios.get('/api/admin/doctors/pending');
-                setPendingDoctors(pendingRes.data);
-
-                const prodData = await axios.get('/api/products');
-                setProducts(prodData.data);
-            } catch (err) {
-                console.error("Error fetching admin data:", err);
-            }
-        };
         fetchData();
     }, []);
 
     const verifyDoctor = async (id, status) => {
+        setActionLoading(id + status);
         try {
             await axios.put(`/api/admin/doctors/${id}/verify`, { status });
-            setPendingDoctors(pendingDoctors.filter(doc => doc._id !== id));
+            await fetchData(); // Refresh all lists
         } catch (err) {
             alert('Failed to update doctor status');
+        } finally {
+            setActionLoading(null);
         }
     };
 
@@ -60,27 +86,20 @@ const AdminDashboard = () => {
 
     return (
         <div className="space-y-12 animate-fade-up max-w-6xl mx-auto">
-            <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-healsync-border pb-8">
-                <div>
-                    <h1 className="text-4xl font-black text-[#111827] tracking-tighter uppercase">Command Center</h1>
-                    <p className="text-healsync-grey font-medium">Platform overview and management console</p>
-                </div>
-                <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
-                    {['stats', 'inventory'].map(tab => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            className={`px-6 py-2 rounded-lg font-bold text-sm transition-all capitalize ${activeTab === tab ? 'bg-white text-healsync-indigo shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                            {tab === 'stats' ? 'Overview' : 'Inventory'}
-                        </button>
-                    ))}
-                </div>
+            <header className="border-b border-healsync-border pb-8">
+                <h1 className="text-4xl font-black text-[#111827] tracking-tighter uppercase">Command Center</h1>
+                <p className="text-healsync-grey font-medium">Platform overview and management console</p>
+                {pendingDoctors.length > 0 && activeTab !== 'doctors' && (
+                    <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm font-bold">
+                        <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse inline-block" />
+                        {pendingDoctors.length} doctor application{pendingDoctors.length > 1 ? 's' : ''} awaiting review
+                    </div>
+                )}
             </header>
 
-            {activeTab === 'stats' ? (
+            {/* ════ STATS TAB ════ */}
+            {activeTab === 'stats' && (
                 <>
-                    {/* Admin Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div className="bg-healsync-indigo p-8 rounded-[2rem] text-white shadow-lg flex flex-col justify-between h-48">
                             <FaChartLine className="text-4xl opacity-20" />
@@ -106,36 +125,169 @@ const AdminDashboard = () => {
                         <div className="bg-white p-8 rounded-[2rem] border border-healsync-border shadow-sm flex flex-col justify-between h-48">
                             <FaHospital className="text-4xl text-healsync-violet opacity-20" />
                             <div>
-                                <p className="text-xs font-bold text-healsync-grey uppercase tracking-widest">Appts</p>
+                                <p className="text-xs font-bold text-healsync-grey uppercase tracking-widest">Appointments</p>
                                 <h3 className="text-3xl font-black text-[#111827]">{stats.appointments}</h3>
                             </div>
                         </div>
                     </div>
 
-                    {/* Verification Queue */}
+                    {/* Quick Pending preview */}
+                    {pendingDoctors.length > 0 && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 flex justify-between items-center">
+                            <div className="flex items-center gap-4">
+                                <FaClock className="text-2xl text-amber-500" />
+                                <div>
+                                    <p className="font-black text-[#111827]">{pendingDoctors.length} Doctor Application{pendingDoctors.length > 1 ? 's' : ''} Awaiting Review</p>
+                                    <p className="text-sm text-healsync-grey font-medium">Review and approve or reject doctor applications</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setActiveTab('doctors')}
+                                className="px-6 py-3 bg-amber-500 text-white rounded-xl font-black text-sm hover:bg-amber-600 transition-all shadow-md"
+                            >
+                                Review Now
+                            </button>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* ════ MANAGE USERS TAB ════ */}
+            {activeTab === 'users' && (
+                <div className="bg-white rounded-[2.5rem] border border-healsync-border shadow-sm overflow-hidden">
+                    <div className="p-8 border-b border-healsync-border bg-gray-50/50 flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                            <FaUsers className="text-healsync-indigo text-xl" />
+                            <h2 className="text-xl font-black text-[#111827] uppercase tracking-tighter">All Registered Users</h2>
+                        </div>
+                        <span className="bg-healsync-indigo/10 text-healsync-indigo px-3 py-1 rounded-lg text-xs font-bold">
+                            {allUsers.length} Users
+                        </span>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="bg-healsync-bg/50 text-healsync-grey text-[12px] font-black uppercase tracking-widest">
+                                    <th className="px-8 py-5">User</th>
+                                    <th className="px-8 py-5">Email</th>
+                                    <th className="px-8 py-5">Role</th>
+                                    <th className="px-8 py-5">Contact</th>
+                                    <th className="px-8 py-5">Joined</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-healsync-border">
+                                {allUsers.map(u => (
+                                    <tr key={u._id} className="hover:bg-healsync-bg/30 transition-colors">
+                                        <td className="px-8 py-5">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-full bg-healsync-indigo/10 overflow-hidden border border-healsync-border shrink-0">
+                                                    <img
+                                                        src={u.image || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}
+                                                        alt=""
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                </div>
+                                                <span className="font-black text-[#111827] text-sm">{u.name}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-5 text-sm text-healsync-grey font-medium">{u.email}</td>
+                                        <td className="px-8 py-5">
+                                            <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-widest border ${u.role === 'admin'
+                                                    ? 'bg-purple-50 text-purple-600 border-purple-200'
+                                                    : u.role === 'doctor'
+                                                        ? 'bg-healsync-indigo/10 text-healsync-indigo border-healsync-indigo/20'
+                                                        : 'bg-teal-50 text-teal-600 border-teal-200'
+                                                }`}>
+                                                {u.role}
+                                            </span>
+                                        </td>
+                                        <td className="px-8 py-5 text-sm text-healsync-grey font-medium">{u.contact || '—'}</td>
+                                        <td className="px-8 py-5 text-sm text-healsync-grey font-medium">
+                                            {new Date(u.createdAt).toLocaleDateString()}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {allUsers.length === 0 && (
+                                    <tr>
+                                        <td colSpan="5" className="px-8 py-16 text-center text-healsync-grey font-bold">
+                                            No users found
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {/* ════ DOCTORS TAB ════ */}
+            {activeTab === 'doctors' && (
+                <div className="space-y-10">
+                    {/* Pending Applications */}
                     <div className="bg-white rounded-[2.5rem] border border-healsync-border shadow-sm overflow-hidden">
-                        <div className="p-8 border-b border-healsync-border bg-gray-50/50 flex justify-between items-center">
-                            <h2 className="text-xl font-black text-[#111827] uppercase tracking-tighter">Doctor Verification Queue</h2>
-                            <span className="bg-healsync-indigo/10 text-healsync-indigo px-3 py-1 rounded-lg text-xs font-bold">{pendingDoctors.length} Pending</span>
+                        <div className="p-8 border-b border-healsync-border bg-amber-50/50 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <FaClock className="text-amber-500 text-xl" />
+                                <h2 className="text-xl font-black text-[#111827] uppercase tracking-tighter">Pending Applications</h2>
+                            </div>
+                            <span className={`px-3 py-1 rounded-lg text-xs font-bold ${pendingDoctors.length > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'}`}>
+                                {pendingDoctors.length} Pending
+                            </span>
                         </div>
                         <div className="divide-y divide-healsync-border">
                             {pendingDoctors.map(doc => (
-                                <div key={doc._id} className="p-8 flex flex-col md:flex-row justify-between items-center gap-8 hover:bg-gray-50/50 transition-all">
+                                <div key={doc._id} className="p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 hover:bg-amber-50/30 transition-all">
                                     <div className="flex gap-6 items-center flex-1">
                                         <div className="w-16 h-16 rounded-2xl bg-healsync-bg overflow-hidden shrink-0 border border-healsync-border shadow-inner">
-                                            <img src={doc.user.image} alt="" className="w-full h-full object-cover" />
+                                            <img
+                                                src={doc.user?.image || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}
+                                                alt=""
+                                                className="w-full h-full object-cover"
+                                            />
                                         </div>
-                                        <div>
-                                            <h3 className="text-lg font-black text-[#111827]">{doc.user.name}</h3>
+                                        <div className="space-y-1">
+                                            <h3 className="text-lg font-black text-[#111827]">{doc.user?.name}</h3>
                                             <p className="text-xs font-bold text-healsync-indigo uppercase tracking-wider">{doc.specialization}</p>
+                                            <p className="text-xs text-healsync-grey font-medium">{doc.user?.email}</p>
                                         </div>
                                     </div>
-                                    <div className="flex gap-3">
-                                        <button onClick={() => verifyDoctor(doc._id, 'verified')} className="p-3 bg-healsync-mint/20 text-teal-700 rounded-xl hover:bg-healsync-mint hover:text-white transition-all">
-                                            <FaCheckCircle size={20} />
+                                    <div className="flex flex-wrap gap-4 text-xs font-bold text-healsync-grey">
+                                        <span className="bg-healsync-bg px-3 py-1.5 rounded-lg border border-healsync-border">
+                                            {doc.experience} yrs exp
+                                        </span>
+                                        <span className="bg-healsync-bg px-3 py-1.5 rounded-lg border border-healsync-border">
+                                            Rs. {doc.fee} fee
+                                        </span>
+                                    </div>
+                                    {doc.bio && (
+                                        <p className="text-sm text-healsync-grey font-medium max-w-xs hidden lg:block italic">
+                                            "{doc.bio.slice(0, 80)}{doc.bio.length > 80 ? '...' : ''}"
+                                        </p>
+                                    )}
+                                    <div className="flex gap-3 shrink-0">
+                                        <button
+                                            onClick={() => verifyDoctor(doc._id, 'verified')}
+                                            disabled={actionLoading === doc._id + 'verified'}
+                                            className="flex items-center gap-2 px-5 py-2.5 bg-healsync-mint/20 text-teal-700 rounded-xl hover:bg-healsync-mint hover:text-white transition-all font-bold text-sm disabled:opacity-50"
+                                        >
+                                            {actionLoading === doc._id + 'verified' ? (
+                                                <div className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                            ) : (
+                                                <FaCheckCircle size={16} />
+                                            )}
+                                            Approve
                                         </button>
-                                        <button onClick={() => verifyDoctor(doc._id, 'rejected')} className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all">
-                                            <FaTimesCircle size={20} />
+                                        <button
+                                            onClick={() => verifyDoctor(doc._id, 'rejected')}
+                                            disabled={actionLoading === doc._id + 'rejected'}
+                                            className="flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all font-bold text-sm disabled:opacity-50"
+                                        >
+                                            {actionLoading === doc._id + 'rejected' ? (
+                                                <div className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                            ) : (
+                                                <FaTimesCircle size={16} />
+                                            )}
+                                            Reject
                                         </button>
                                     </div>
                                 </div>
@@ -143,13 +295,63 @@ const AdminDashboard = () => {
                             {pendingDoctors.length === 0 && (
                                 <div className="p-16 text-center text-healsync-grey">
                                     <FaCheckCircle className="text-5xl mx-auto mb-4 opacity-10" />
-                                    <p className="text-sm font-black uppercase tracking-widest opacity-40">Queue Empty</p>
+                                    <p className="text-sm font-black uppercase tracking-widest opacity-40">No Pending Applications</p>
                                 </div>
                             )}
                         </div>
                     </div>
-                </>
-            ) : (
+
+                    {/* Approved Doctors */}
+                    <div className="bg-white rounded-[2.5rem] border border-healsync-border shadow-sm overflow-hidden">
+                        <div className="p-8 border-b border-healsync-border bg-teal-50/50 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <FaCheck className="text-teal-500 text-xl" />
+                                <h2 className="text-xl font-black text-[#111827] uppercase tracking-tighter">Approved Doctors</h2>
+                            </div>
+                            <span className="bg-teal-100 text-teal-700 px-3 py-1 rounded-lg text-xs font-bold">
+                                {approvedDoctors.length} Active
+                            </span>
+                        </div>
+                        <div className="divide-y divide-healsync-border">
+                            {approvedDoctors.map(doc => (
+                                <div key={doc._id} className="p-6 flex flex-col md:flex-row justify-between items-center gap-6 hover:bg-teal-50/20 transition-all">
+                                    <div className="flex gap-6 items-center flex-1">
+                                        <div className="w-14 h-14 rounded-2xl bg-healsync-bg overflow-hidden shrink-0 border border-healsync-border shadow-inner">
+                                            <img
+                                                src={doc.user?.image || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}
+                                                alt=""
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-base font-black text-[#111827]">{doc.user?.name}</h3>
+                                                <FaCheckCircle className="text-teal-500 text-sm" />
+                                            </div>
+                                            <p className="text-xs font-bold text-healsync-indigo uppercase tracking-wider">{doc.specialization}</p>
+                                            <p className="text-xs text-healsync-grey font-medium">{doc.user?.email}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3 text-xs font-bold text-healsync-grey">
+                                        <span className="bg-healsync-bg px-3 py-1.5 rounded-lg border border-healsync-border">{doc.experience} yrs</span>
+                                        <span className="bg-healsync-bg px-3 py-1.5 rounded-lg border border-healsync-border">Rs. {doc.fee}</span>
+                                        <span className="bg-teal-50 text-teal-600 px-3 py-1.5 rounded-lg border border-teal-200 uppercase tracking-wider">Active</span>
+                                    </div>
+                                </div>
+                            ))}
+                            {approvedDoctors.length === 0 && (
+                                <div className="p-16 text-center text-healsync-grey">
+                                    <FaUserMd className="text-5xl mx-auto mb-4 opacity-10" />
+                                    <p className="text-sm font-black uppercase tracking-widest opacity-40">No Approved Doctors Yet</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ════ INVENTORY TAB ════ */}
+            {activeTab === 'inventory' && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
                     {/* Add Product Form */}
                     <div className="lg:col-span-1">

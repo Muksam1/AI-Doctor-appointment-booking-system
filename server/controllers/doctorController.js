@@ -52,6 +52,18 @@ const updateDoctorProfile = async (req, res) => {
     const doctor = await Doctor.findOne({ user: req.user._id });
 
     if (doctor) {
+        // Update user fields
+        const user = await User.findById(req.user._id);
+        if (user) {
+            user.name = req.body.name || user.name;
+            user.image = req.body.image || user.image;
+            if (req.body.password) {
+                user.password = req.body.password;
+            }
+            await user.save();
+        }
+
+        // Update doctor fields
         doctor.specialization = req.body.specialization || doctor.specialization;
         doctor.experience = req.body.experience || doctor.experience;
         doctor.bio = req.body.bio || doctor.bio;
@@ -59,7 +71,10 @@ const updateDoctorProfile = async (req, res) => {
         doctor.availability = req.body.availability || doctor.availability;
 
         const updatedDoctor = await doctor.save();
-        res.json(updatedDoctor);
+
+        // Return combined data
+        const fullDoctor = await Doctor.findById(updatedDoctor._id).populate('user', 'name email image role');
+        res.json(fullDoctor);
     } else {
         res.status(404);
         throw new Error('Doctor profile not found');
@@ -70,14 +85,51 @@ const updateDoctorProfile = async (req, res) => {
 // @route   GET /api/doctors/dashboard
 // @access  Private/Doctor
 const getDoctorDashboard = async (req, res) => {
-    const doctor = await Doctor.findOne({ user: req.user._id });
-    // This will be expanded later with appointments
+    const doctor = await Doctor.findOne({ user: req.user._id }).populate('user', 'name email image role');
     res.json({ doctor });
+};
+
+// @desc    Submit / Re-submit join application to HealSync
+// @route   POST /api/doctors/join
+// @access  Private/Doctor
+const submitJoinApplication = async (req, res) => {
+    const doctor = await Doctor.findOne({ user: req.user._id });
+
+    if (!doctor) {
+        res.status(404);
+        throw new Error('Doctor profile not found');
+    }
+
+    // Only allow re-application if not already approved
+    if (doctor.applicationStatus === 'approved') {
+        return res.json({ message: 'Your application is already approved', doctor });
+    }
+
+    // Update professional details from form
+    doctor.specialization = req.body.specialization || doctor.specialization;
+    doctor.experience = req.body.experience !== undefined ? req.body.experience : doctor.experience;
+    doctor.bio = req.body.bio || doctor.bio;
+    doctor.fee = req.body.fee !== undefined ? req.body.fee : doctor.fee;
+    doctor.applicationStatus = 'pending';
+    doctor.isVerified = false;
+
+    // Also update user info (name/image)
+    const user = await User.findById(req.user._id);
+    if (user) {
+        if (req.body.name) user.name = req.body.name;
+        if (req.body.image) user.image = req.body.image;
+        await user.save();
+    }
+
+    const updatedDoctor = await doctor.save();
+    const fullDoctor = await Doctor.findById(updatedDoctor._id).populate('user', 'name email image role');
+    res.json({ message: 'Application submitted! Pending admin approval.', doctor: fullDoctor });
 };
 
 module.exports = {
     getDoctors,
     getDoctorById,
     updateDoctorProfile,
-    getDoctorDashboard
+    getDoctorDashboard,
+    submitJoinApplication
 };

@@ -26,6 +26,11 @@ const doctorSchema = mongoose.Schema({
         type: Boolean,
         default: false
     },
+    applicationStatus: {
+        type: String,
+        enum: ['pending', 'approved', 'rejected'],
+        default: 'pending'
+    },
     availability: [
         {
             day: { type: String, required: true },

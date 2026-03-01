@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FaUserCircle, FaChevronDown, FaBars, FaTimes, FaSearch } from 'react-icons/fa';
+import { FaUserCircle, FaBars, FaTimes } from 'react-icons/fa';
 
 const Navbar = () => {
     const { user, logout } = useAuth();
@@ -24,6 +24,38 @@ const Navbar = () => {
     };
 
     const isActive = (path) => location.pathname === path;
+    const isActiveTab = (tab) => {
+        const params = new URLSearchParams(location.search);
+        return location.pathname === '/dashboard' && params.get('tab') === tab;
+    };
+
+    // Admin nav links
+    const adminLinks = [
+        { label: 'Verify Doctors', tab: 'doctors' },
+        { label: 'Manage Users', tab: 'users' },
+        { label: 'Platform Stats', tab: 'stats' },
+        { label: 'Lab/Meds Admin', tab: 'inventory' },
+    ];
+
+    // Doctor nav links
+    const doctorLinks = [
+        { label: 'My Profile', to: '/dashboard' },
+        { label: 'Chats', to: '/consult' },
+        { label: 'Join Today', to: '/dashboard' },
+    ];
+
+    // Patient nav links
+    const patientLinks = [
+        { label: 'Find Doctors', to: '/doctors' },
+        { label: 'Video Consult', to: '/consult' },
+        { label: 'Medicines', to: '/lab-tests' },
+    ];
+
+    const linkClass = (active) =>
+        `px-5 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${active
+            ? 'bg-white text-healsync-indigo shadow-sm'
+            : 'text-healsync-grey hover:text-healsync-indigo hover:bg-white/50'
+        }`;
 
     return (
         <div className="fixed top-0 left-0 right-0 z-[100] px-4 py-4 md:px-8 transition-all duration-500">
@@ -31,9 +63,9 @@ const Navbar = () => {
                 ? 'bg-white/90 backdrop-blur-xl shadow-healsync border border-white/40 py-3 px-6'
                 : 'bg-white/50 backdrop-blur-md border border-white/20 py-5 px-8'
                 }`}>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                     {/* Logo */}
-                    <Link to="/" className="flex items-center gap-4 group">
+                    <Link to="/" className="flex items-center gap-4 group shrink-0">
                         <div className="w-12 h-12 bg-gradient-to-br from-healsync-indigo to-healsync-violet rounded-2xl flex items-center justify-center shadow-healsync group-hover:scale-110 transition-transform duration-500 rotate-6 group-hover:rotate-0">
                             <span className="text-white text-2xl font-black">H</span>
                         </div>
@@ -43,38 +75,47 @@ const Navbar = () => {
                     </Link>
 
                     {/* Desktop Navigation */}
-                    <div className="hidden lg:flex items-center gap-4 bg-healsync-bg/50 p-1.5 rounded-2xl border border-healsync-border">
-                        <Link
-                            to="/doctors"
-                            className={`px-8 py-3 rounded-xl text-base font-black transition-all ${isActive('/doctors')
-                                ? 'bg-white text-healsync-indigo shadow-sm'
-                                : 'text-healsync-grey hover:text-healsync-indigo hover:bg-white/50'
-                                }`}
-                        >
-                            Find Doctors
-                        </Link>
-                        <Link
-                            to="/consult"
-                            className={`px-8 py-3 rounded-xl text-base font-black transition-all ${isActive('/consult')
-                                ? 'bg-white text-healsync-indigo shadow-sm'
-                                : 'text-healsync-grey hover:text-healsync-indigo hover:bg-white/50'
-                                }`}
-                        >
-                            Video Consult
-                        </Link>
-                        <Link
-                            to="/lab-tests"
-                            className={`px-8 py-3 rounded-xl text-base font-black transition-all ${isActive('/lab-tests')
-                                ? 'bg-white text-healsync-indigo shadow-sm'
-                                : 'text-healsync-grey hover:text-healsync-indigo hover:bg-white/50'
-                                }`}
-                        >
-                            Medicines
-                        </Link>
+                    <div className="hidden lg:flex items-center gap-2 bg-healsync-bg/50 p-1.5 rounded-2xl border border-healsync-border flex-1 justify-center">
+                        {user?.role === 'admin' ? (
+                            // ── Admin Links ──
+                            adminLinks.map(({ label, tab }) => (
+                                <Link
+                                    key={tab}
+                                    to={`/dashboard?tab=${tab}`}
+                                    className={linkClass(isActiveTab(tab))}
+                                >
+                                    {label}
+                                </Link>
+                            ))
+                        ) : user?.role === 'doctor' ? (
+                            // ── Doctor Links ──
+                            doctorLinks.map(({ label, to }) => (
+                                <Link
+                                    key={label}
+                                    to={to}
+                                    className={linkClass(isActive(to) && label !== 'Chats'
+                                        ? true
+                                        : isActive(to) && label === 'Chats')}
+                                >
+                                    {label}
+                                </Link>
+                            ))
+                        ) : (
+                            // ── Patient Links ──
+                            patientLinks.map(({ label, to }) => (
+                                <Link
+                                    key={label}
+                                    to={to}
+                                    className={linkClass(isActive(to))}
+                                >
+                                    {label}
+                                </Link>
+                            ))
+                        )}
                     </div>
 
                     {/* Auth Actions */}
-                    <div className="hidden lg:flex items-center gap-4">
+                    <div className="hidden lg:flex items-center gap-4 shrink-0">
                         {user ? (
                             <div className="flex items-center gap-4">
                                 <Link to="/dashboard" className="flex items-center gap-4 p-1.5 pr-6 bg-healsync-bg rounded-full border border-healsync-border hover:bg-white transition-all group">
@@ -117,13 +158,44 @@ const Navbar = () => {
                 {isMobileMenuOpen && (
                     <div className="lg:hidden mt-4 p-4 bg-white rounded-3xl border border-healsync-border shadow-2xl animate-in slide-in-from-top-4 duration-300">
                         <div className="flex flex-col gap-2">
-                            <Link to="/doctors" className="p-4 rounded-2xl font-black text-healsync-grey hover:bg-healsync-bg hover:text-healsync-indigo">Find Doctors</Link>
-                            <Link to="/consult" className="p-4 rounded-2xl font-black text-healsync-grey hover:bg-healsync-bg hover:text-healsync-indigo">Video Consult</Link>
-                            <Link to="/lab-tests" className="p-4 rounded-2xl font-black text-healsync-grey hover:bg-healsync-bg hover:text-healsync-indigo">Medicines</Link>
+                            {user?.role === 'admin' ? (
+                                adminLinks.map(({ label, tab }) => (
+                                    <Link
+                                        key={tab}
+                                        to={`/dashboard?tab=${tab}`}
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                        className="p-4 rounded-2xl font-black text-healsync-grey hover:bg-healsync-bg hover:text-healsync-indigo"
+                                    >
+                                        {label}
+                                    </Link>
+                                ))
+                            ) : user?.role === 'doctor' ? (
+                                doctorLinks.map(({ label, to }) => (
+                                    <Link
+                                        key={label}
+                                        to={to}
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                        className="p-4 rounded-2xl font-black text-healsync-grey hover:bg-healsync-bg hover:text-healsync-indigo"
+                                    >
+                                        {label}
+                                    </Link>
+                                ))
+                            ) : (
+                                patientLinks.map(({ label, to }) => (
+                                    <Link
+                                        key={label}
+                                        to={to}
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                        className="p-4 rounded-2xl font-black text-healsync-grey hover:bg-healsync-bg hover:text-healsync-indigo"
+                                    >
+                                        {label}
+                                    </Link>
+                                ))
+                            )}
                             <div className="h-px bg-healsync-border my-2"></div>
                             {user ? (
                                 <>
-                                    <Link to="/dashboard" className="p-4 rounded-2xl font-black text-healsync-indigo bg-healsync-indigo/5">Go to Dashboard</Link>
+                                    <Link to="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="p-4 rounded-2xl font-black text-healsync-indigo bg-healsync-indigo/5">Dashboard</Link>
                                     <button onClick={handleLogout} className="p-4 text-left rounded-2xl font-black text-red-500 hover:bg-red-50">Logout</button>
                                 </>
                             ) : (
