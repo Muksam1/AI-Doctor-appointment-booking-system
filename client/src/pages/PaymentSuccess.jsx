@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useLocation } from 'react-router-dom';
 import { FaCheckCircle } from 'react-icons/fa';
 import axios from 'axios';
 import jsPDF from 'jspdf';
@@ -7,12 +7,18 @@ import 'jspdf-autotable';
 
 const PaymentSuccess = () => {
     const [searchParams] = useSearchParams();
+    const location = useLocation();
     const appointmentId = searchParams.get('purchase_order_id');
-    const [orderData, setOrderData] = React.useState(null);
+    const [orderData, setOrderData] = React.useState(location.state?.orderData || null);
 
     useEffect(() => {
         const verify = async () => {
             try {
+                if (orderData) {
+                    // Already processed (e.g. COD from LabTests)
+                    return;
+                }
+
                 if (appointmentId) {
                     await axios.post('/api/payments/verify', {
                         appointmentId,
@@ -21,10 +27,13 @@ const PaymentSuccess = () => {
                 } else {
                     const pendingOrder = JSON.parse(localStorage.getItem('pendingOrder'));
                     if (pendingOrder) {
+                        // Sanitize for enum compatibility
+                        if (pendingOrder.paymentMethod === 'COD') pendingOrder.paymentMethod = 'Cod';
+
                         const { data } = await axios.post('/api/payments/verify', pendingOrder);
                         setOrderData(data);
                         localStorage.removeItem('pendingOrder');
-                        localStorage.removeItem('cart');
+                        localStorage.removeItem('cart'); // Also clear cart in localStorage if any
                     }
                 }
             } catch (err) {
@@ -32,7 +41,7 @@ const PaymentSuccess = () => {
             }
         };
         verify();
-    }, [appointmentId]);
+    }, [appointmentId, orderData]);
 
     const generateInvoice = () => {
         if (!orderData) return;

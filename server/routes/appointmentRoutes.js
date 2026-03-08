@@ -3,7 +3,8 @@ const {
     bookAppointment,
     getMyAppointments,
     getDoctorAppointments,
-    updateAppointmentStatus
+    updateAppointmentStatus,
+    getBookedSlots
 } = require('../controllers/appointmentController');
 const { protect, doctor, admin } = require('../middleware/authMiddleware');
 
@@ -13,5 +14,6 @@ router.post('/', protect, bookAppointment);
 router.get('/my', protect, getMyAppointments);
 router.get('/doctor', protect, doctor, getDoctorAppointments);
 router.put('/:id/status', protect, updateAppointmentStatus);
+router.get('/booked-slots/:doctorId/:date', getBookedSlots);
 
 module.exports = router;

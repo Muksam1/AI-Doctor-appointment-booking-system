@@ -11,32 +11,20 @@ import DoctorDetail from './pages/DoctorDetail';
 import Consult from './pages/Consult';
 import LabTests from './pages/LabTests';
 import PaymentSuccess from './pages/PaymentSuccess';
+import PaymentVerification from './pages/PaymentVerification';
+import ProtectedRoute from './components/ProtectedRoute';
 import Chatbot from './components/Chatbot';
 import axios from 'axios';
 
 // Base API configuration
 axios.defaults.baseURL = 'http://localhost:5000';
 
-const PrivateRoute = ({ children, role }) => {
-  const { user, loading } = useAuth();
-
-  if (loading) return <div className="h-screen flex items-center justify-center">Loading...</div>;
-
-  if (!user) return <Navigate to="/login" />;
-
-  if (role && user.role !== role) {
-    return <Navigate to="/" />;
-  }
-
-  return children;
-};
-
 function App() {
   return (
     <Router>
       <div className="min-h-screen flex flex-col">
         <Navbar />
-        <main className="flex-grow container mx-auto px-6 pt-32 pb-12">
+        <main className="flex-grow pt-32 pb-12">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
@@ -46,14 +34,15 @@ function App() {
             <Route path="/consult" element={<Consult />} />
             <Route path="/lab-tests" element={<LabTests />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
+            <Route path="/payment-verification" element={<PaymentVerification />} />
 
             {/* Unified Dashboard Route (Internal logic will handle role-based view) */}
             <Route
               path="/dashboard/*"
               element={
-                <PrivateRoute>
+                <ProtectedRoute>
                   <Dashboard />
-                </PrivateRoute>
+                </ProtectedRoute>
               }
             />
           </Routes>

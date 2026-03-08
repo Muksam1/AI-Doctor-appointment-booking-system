@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import {
     FaUserMd, FaCheck, FaTimes, FaCalendarCheck, FaClock,
     FaStethoscope, FaUserCog, FaImage, FaSave, FaRocket,
     FaCheckCircle, FaHourglassHalf, FaTimesCircle, FaPaperPlane,
-    FaLock
+    FaLock, FaLink
 } from 'react-icons/fa';
 import { useAuth } from '../../context/AuthContext';
 
@@ -101,6 +101,18 @@ const DoctorDashboard = () => {
             setSubmitMessage(err.response?.data?.message || 'Failed to submit application. Please try again.');
         }
     };
+    const doctorFileInputRef = useRef(null);
+
+    const handleDoctorImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setDoctorInfo(prev => ({ ...prev, image: reader.result }));
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     const handleProfileUpdate = async (e) => {
         e.preventDefault();
@@ -108,7 +120,12 @@ const DoctorDashboard = () => {
             const { data } = await axios.put('/api/doctors/profile', doctorInfo);
             alert('Profile updated successfully!');
             const storedUser = JSON.parse(localStorage.getItem('userInfo'));
-            const updatedUser = { ...storedUser, name: data.user?.name || storedUser.name, image: data.user?.image || storedUser.image };
+            const updatedUser = {
+                ...storedUser,
+                name: data.user?.name || storedUser.name,
+                image: data.user?.image || storedUser.image,
+                role: data.user?.role || storedUser.role
+            };
             localStorage.setItem('userInfo', JSON.stringify(updatedUser));
             setUser(updatedUser);
         } catch (err) {
@@ -430,13 +447,13 @@ const DoctorDashboard = () => {
                                                     <td className="px-10 py-8">
                                                         <div className="flex items-center gap-6">
                                                             <div className="w-12 h-12 rounded-full bg-healsync-indigo/10 flex items-center justify-center text-healsync-indigo font-black text-lg overflow-hidden border border-healsync-indigo/20">
-                                                                {appt.patient.image ? (
+                                                                {appt.patient?.image ? (
                                                                     <img src={appt.patient.image} alt="" className="w-full h-full object-cover" />
                                                                 ) : (
-                                                                    appt.patient.name.charAt(0)
+                                                                    appt.patient?.name ? appt.patient.name.charAt(0) : 'P'
                                                                 )}
                                                             </div>
-                                                            <span className="font-black text-[#111827] text-lg">{appt.patient.name}</span>
+                                                            <span className="font-black text-[#111827] text-lg">{appt.patient?.name || 'Unknown Patient'}</span>
                                                         </div>
                                                     </td>
                                                     <td className="px-10 py-8">
@@ -508,15 +525,36 @@ const DoctorDashboard = () => {
                                         className="w-full px-6 py-4 rounded-2xl bg-healsync-bg border border-healsync-border focus:ring-2 ring-healsync-indigo/20 outline-none font-bold text-[#111827]"
                                     />
                                 </div>
-                                <div className="space-y-2">
+                                <div className="space-y-2 md:col-span-2">
                                     <label className="text-[11px] font-black text-healsync-grey uppercase tracking-widest ml-1">Profile Image URL</label>
-                                    <input
-                                        type="text"
-                                        value={doctorInfo.image}
-                                        onChange={(e) => setDoctorInfo({ ...doctorInfo, image: e.target.value })}
-                                        className="w-full px-6 py-4 rounded-2xl bg-healsync-bg border border-healsync-border focus:ring-2 ring-healsync-indigo/20 outline-none font-bold text-[#111827]"
-                                        placeholder="https://example.com/photo.jpg"
-                                    />
+                                    <div className="flex flex-col sm:flex-row gap-4">
+                                        <div className="relative flex-1 group">
+                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-healsync-grey group-focus-within:text-healsync-indigo transition-colors font-black text-xs">
+                                                <FaLink />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={doctorInfo.image}
+                                                onChange={(e) => setDoctorInfo({ ...doctorInfo, image: e.target.value })}
+                                                className="w-full pl-12 pr-6 py-4 rounded-2xl bg-healsync-bg border border-healsync-border focus:ring-2 ring-healsync-indigo/20 outline-none font-bold text-[#111827] text-sm"
+                                                placeholder="https://example.com/photo.jpg"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => doctorFileInputRef.current.click()}
+                                            className="px-8 py-4 bg-healsync-indigo text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-healsync-indigo/90 hover:-translate-y-1 transition-all shadow-md flex items-center justify-center gap-2 whitespace-nowrap"
+                                        >
+                                            <FaImage /> Upload Photo
+                                        </button>
+                                        <input
+                                            type="file"
+                                            ref={doctorFileInputRef}
+                                            onChange={handleDoctorImageUpload}
+                                            className="hidden"
+                                            accept="image/*"
+                                        />
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[11px] font-black text-healsync-grey uppercase tracking-widest ml-1">Specialization</label>

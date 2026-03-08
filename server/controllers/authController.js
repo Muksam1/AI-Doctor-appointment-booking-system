@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Doctor = require('../models/Doctor');
+const Patient = require('../models/Patient');
 const generateToken = require('../config/generateToken');
 
 // @desc    Register a new user
@@ -31,6 +32,10 @@ const registerUser = async (req, res) => {
                 experience: req.body.experience || 0,
                 bio: req.body.bio || '',
                 fee: req.body.fee || 0
+            });
+        } else if (user.role === 'patient') {
+            await Patient.create({
+                user: user._id
             });
         }
 

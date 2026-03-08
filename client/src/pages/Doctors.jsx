@@ -18,7 +18,7 @@ const Doctors = () => {
     }, [search, specialization]);
 
     return (
-        <div className="container mx-auto px-6 py-12 space-y-12 animate-fade-up">
+        <div className="w-full px-4 md:px-8 py-12 space-y-12 animate-fade-up">
             <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-healsync-border pb-10">
                 <div className="space-y-3">
                     <div className="flex items-center gap-2 text-healsync-indigo font-black text-xs uppercase tracking-widest">

@@ -63,7 +63,7 @@ const Home = () => {
             <section className="relative px-6 py-20 overflow-hidden">
                 <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-healsync-indigo/5 to-transparent rounded-l-[10rem] -z-10"></div>
 
-                <div className="container mx-auto flex flex-col lg:flex-row items-center gap-16">
+                <div className="w-full px-6 md:px-12 flex flex-col lg:flex-row items-center gap-16">
                     <div className="flex-1 space-y-10">
                         <div className="inline-flex items-center gap-2 bg-healsync-indigo/10 px-4 py-2 rounded-full border border-healsync-indigo/20 text-healsync-indigo text-xs font-black uppercase tracking-widest">
                             <span className="relative flex h-2 w-2">
@@ -131,7 +131,7 @@ const Home = () => {
             </section>
 
             {/* Services Grid - Creative Hex/Rounded Layout */}
-            <section className="container mx-auto px-6 py-20">
+            <section className="w-full px-6 md:px-12 py-20">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                     {services.map((service, idx) => (
                         <div key={idx} className="healsync-card p-10 h-full group bg-gradient-to-b from-white to-healsync-bg hover:to-white">
@@ -154,7 +154,7 @@ const Home = () => {
 
             {/* Specializations Section - Modern List */}
             <section className="bg-white py-32 rounded-[5rem] shadow-2xl">
-                <div className="container mx-auto px-6">
+                <div className="w-full px-6 md:px-12">
                     <div className="flex flex-col md:flex-row justify-between items-end gap-8 mb-20">
                         <div className="space-y-4">
                             <h2 className="section-title text-5xl">Our Expertise</h2>
@@ -183,7 +183,7 @@ const Home = () => {
             </section>
 
             {/* Creative Banner Section */}
-            <section className="container mx-auto px-6 py-40">
+            <section className="w-full px-6 md:px-12 py-40">
                 <div className="bg-[#111827] rounded-[4rem] p-12 lg:p-24 overflow-hidden relative flex flex-col lg:flex-row items-center gap-20 shadow-2xl">
                     <div className="absolute top-0 right-0 w-96 h-96 bg-healsync-indigo/20 blur-[10rem] rounded-full"></div>
 

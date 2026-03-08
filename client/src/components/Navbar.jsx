@@ -47,7 +47,7 @@ const Navbar = () => {
     // Patient nav links
     const patientLinks = [
         { label: 'Find Doctors', to: '/doctors' },
-        { label: 'Video Consult', to: '/consult' },
+        { label: 'Chats', to: '/consult' },
         { label: 'Medicines', to: '/lab-tests' },
     ];
 
@@ -59,7 +59,7 @@ const Navbar = () => {
 
     return (
         <div className="fixed top-0 left-0 right-0 z-[100] px-4 py-4 md:px-8 transition-all duration-500">
-            <nav className={`mx-auto max-w-7xl transition-all duration-500 rounded-[2rem] ${isScrolled
+            <nav className={`w-full transition-all duration-500 rounded-[2rem] ${isScrolled
                 ? 'bg-white/90 backdrop-blur-xl shadow-healsync border border-white/40 py-3 px-6'
                 : 'bg-white/50 backdrop-blur-md border border-white/20 py-5 px-8'
                 }`}>

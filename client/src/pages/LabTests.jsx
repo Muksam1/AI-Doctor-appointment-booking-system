@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { FaPlus, FaMinus, FaShoppingCart, FaSearch, FaFilter, FaCapsules, FaStethoscope, FaBaby, FaHeartbeat, FaTimes, FaCreditCard, FaMoneyBillWave, FaMobileAlt } from 'react-icons/fa';
+import { FaPlus, FaMinus, FaShoppingCart, FaSearch, FaFilter, FaCapsules, FaStethoscope, FaBaby, FaHeartbeat, FaTimes, FaCreditCard, FaMoneyBillWave, FaMobileAlt, FaCcVisa, FaCcMastercard, FaCcAmex, FaCcJcb, FaInfoCircle, FaPaperPlane, FaImage, FaFileVideo, FaCheck } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm }) => {
+const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm, cart, setCart, products, checkoutItem }) => {
+    const navigate = useNavigate();
     const [paymentMethod, setPaymentMethod] = useState('card');
     const [isProcessing, setIsProcessing] = useState(false);
 
@@ -12,100 +13,127 @@ const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm }) => {
     const [walletDetails, setWalletDetails] = useState({ id: '', pin: '' });
     const [selectedWallet, setSelectedWallet] = useState('esewa'); // 'esewa' or 'khalti'
 
-    if (!isOpen) return null;
-
     const handlePay = async () => {
+        if (totalAmount <= 0) {
+            alert("Cart is empty or invalid. Please add items.");
+            return;
+        }
         setIsProcessing(true);
 
+        const itemsToProcess = checkoutItem
+            ? { [checkoutItem]: cart[checkoutItem] || 1 }
+            : cart;
+
+        const orderItems = Object.entries(itemsToProcess).map(([id, qty]) => {
+            const product = products.find(p => (p._id && p._id.toString() === id.toString()) || (p.id && p.id.toString() === id.toString()));
+            if (!product) return null;
+            return {
+                name: product.name,
+                qty,
+                price: product.price,
+                product: product._id || product.id,
+                image: product.image
+            };
+        }).filter(item => item !== null);
+
+        if (orderItems.length === 0) {
+            alert("Order items are invalid");
+            setIsProcessing(false);
+            return;
+        }
+
         const orderData = {
-            orderItems: Object.entries(cart).map(([id, qty]) => {
-                const product = products.find(p => p.id === parseInt(id));
-                return {
-                    name: product.name,
-                    qty,
-                    price: product.price,
-                    product: product.id
-                };
-            }),
-            totalAmount: calculateTotal(),
+            orderItems,
+            totalAmount: totalAmount,
             shippingAddress: {
                 address: "Sample Address 123", // In real app, get from form
                 city: "Kathmandu",
                 postalCode: "44600"
             },
-            paymentMethod: selectedWallet === 'esewa' ? 'eSewa' : 'Khalti'
+            paymentMethod: paymentMethod === 'cod' ? 'Cod' : (selectedWallet === 'esewa' ? 'eSewa' : 'Khalti')
         };
 
         // For Khalti and eSewa, we save it to localStorage and retrieve on Success page
-        localStorage.setItem('pendingOrder', JSON.stringify(orderData));
+        if (paymentMethod !== 'cod') {
+            localStorage.setItem('pendingOrder', JSON.stringify(orderData));
+        }
 
-        if (paymentMethod === 'wallet' && selectedWallet === 'esewa') {
+        if (paymentMethod === 'cod') {
             try {
-                // Initiate eSewa Payment
-                const { data } = await axios.post('/api/payments/esewa/initiate', {
-                    totalAmount: totalAmount,
-                    items: []
-                });
-
-                // Create and submit form programmatically
-                const form = document.createElement("form");
-                form.setAttribute("method", "POST");
-                form.setAttribute("action", data.esewa_url);
-
-                const fields = [
-                    'amount', 'failure_url', 'product_delivery_charge', 'product_service_charge',
-                    'product_code', 'signature', 'signed_field_names', 'success_url',
-                    'tax_amount', 'total_amount', 'transaction_uuid'
-                ];
-
-                fields.forEach(field => {
-                    const input = document.createElement("input");
-                    input.setAttribute("type", "hidden");
-                    input.setAttribute("name", field);
-                    input.setAttribute("value", data[field]);
-                    form.appendChild(input);
-                });
-
-                document.body.appendChild(form);
-                form.submit();
+                const response = await axios.post('/api/payments/verify', orderData);
+                const { data } = response;
+                setIsProcessing(false);
+                onClose();
+                setCart({});
+                navigate('/payment-success', { state: { orderData: data } });
             } catch (err) {
-                console.error("eSewa initiation failed:", err);
-                alert("Failed to connect to eSewa. Please try again.");
+                console.error("COD order failed:", err);
+                const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message;
+                alert(`Failed to place order: ${errorMessage}`);
                 setIsProcessing(false);
             }
             return;
         }
 
-        if (paymentMethod === 'wallet' && selectedWallet === 'khalti') {
-            try {
-                const { data } = await axios.post('/api/payments/khalti/initiate', {
-                    totalAmount: totalAmount,
-                    items: []
-                });
+        if (paymentMethod === 'wallet' || paymentMethod === 'card') {
+            const gatewayToUse = paymentMethod === 'card' ? 'esewa' : selectedWallet;
 
-                if (data.payment_url) {
-                    window.location.href = data.payment_url;
-                } else {
-                    throw new Error("No payment URL received");
+            if (gatewayToUse === 'esewa') {
+                try {
+                    // Initiate eSewa Payment
+                    const { data } = await axios.post('/api/payments/esewa/initiate', {
+                        totalAmount: totalAmount
+                    });
+
+                    // Create and submit form programmatically
+                    const form = document.createElement("form");
+                    form.setAttribute("method", "POST");
+                    form.setAttribute("action", data.esewa_url);
+
+                    // Skip the URL itself from being an input
+                    Object.keys(data).forEach(key => {
+                        if (key !== 'esewa_url') {
+                            const input = document.createElement("input");
+                            input.setAttribute("type", "hidden");
+                            input.setAttribute("name", key);
+                            input.setAttribute("value", data[key]);
+                            form.appendChild(input);
+                        }
+                    });
+
+                    document.body.appendChild(form);
+                    form.submit();
+                } catch (err) {
+                    console.error("eSewa initiation failed:", err);
+                    alert("Failed to connect to eSewa. Please try again.");
+                    setIsProcessing(false);
                 }
-            } catch (err) {
-                console.error("Khalti initiation failed:", err);
-                alert("Failed to connect to Khalti. Please try again.");
-                setIsProcessing(false);
+            } else if (gatewayToUse === 'khalti') {
+                try {
+                    const { data } = await axios.post('/api/payments/khalti/initiate', {
+                        totalAmount: totalAmount
+                    });
+
+                    if (data.payment_url) {
+                        window.location.href = data.payment_url;
+                    } else {
+                        throw new Error("No payment URL received");
+                    }
+                } catch (err) {
+                    console.error("Khalti initiation failed:", err);
+                    alert("Failed to connect to Khalti. Please try again.");
+                    setIsProcessing(false);
+                }
             }
             return;
         }
-
-        // Simulation for other methods (Card, COD)
-        setTimeout(() => {
-            setIsProcessing(false);
-            onConfirm();
-        }, 2000);
     };
 
+    if (!isOpen) return null;
+
     return (
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xl flex items-center justify-center p-0 md:p-6 animate-in fade-in duration-300">
+            <div className="bg-white w-full h-full md:h-auto md:max-w-4xl md:rounded-[4rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500 flex flex-col">
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                     <h3 className="text-xl font-black text-[#111827]">Secure Checkout</h3>
                     {!isProcessing && (
@@ -115,7 +143,7 @@ const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm }) => {
                     )}
                 </div>
 
-                <div className="p-8 space-y-6">
+                <div className="p-8 md:p-12 space-y-8 flex-grow overflow-y-auto">
                     <div className="text-center space-y-2">
                         <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">Total Payble</p>
                         <p className="text-4xl font-black text-healsync-indigo">Rs. {totalAmount}</p>
@@ -129,7 +157,6 @@ const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm }) => {
                                 <p className="text-sm text-gray-500">Connecting to secure gateway</p>
                             </div>
 
-                            {/* Allow cancel during processing (mostly for simulation) */}
                             <button
                                 onClick={() => setIsProcessing(false)}
                                 className="mt-4 px-8 py-2 border-2 border-gray-200 text-gray-500 font-bold rounded-xl hover:bg-gray-50 hover:text-red-500 hover:border-red-100 transition-all active:scale-95"
@@ -153,37 +180,65 @@ const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm }) => {
 
                             <div className="space-y-4">
                                 {paymentMethod === 'card' && (
-                                    <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
-                                        <input
-                                            type="text"
-                                            placeholder="Card Number"
-                                            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl font-medium focus:outline-none focus:border-healsync-indigo transition-colors"
-                                            value={cardDetails.number}
-                                            onChange={e => setCardDetails({ ...cardDetails, number: e.target.value })}
-                                        />
-                                        <div className="flex gap-3">
-                                            <input
-                                                type="text"
-                                                placeholder="MM/YY"
-                                                className="w-1/2 p-4 bg-gray-50 border border-gray-200 rounded-xl font-medium focus:outline-none focus:border-healsync-indigo transition-colors"
-                                                value={cardDetails.expiry}
-                                                onChange={e => setCardDetails({ ...cardDetails, expiry: e.target.value })}
-                                            />
-                                            <input
-                                                type="text"
-                                                placeholder="CVV"
-                                                className="w-1/2 p-4 bg-gray-50 border border-gray-200 rounded-xl font-medium focus:outline-none focus:border-healsync-indigo transition-colors"
-                                                value={cardDetails.cvv}
-                                                onChange={e => setCardDetails({ ...cardDetails, cvv: e.target.value })}
-                                            />
+                                    <div className="p-6 border-2 border-blue-500 rounded-xl space-y-6 animate-in fade-in slide-in-from-bottom-2 bg-white">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-5 h-5 rounded-full border-4 border-blue-500 flex items-center justify-center">
+                                                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                                </div>
+                                                <p className="font-bold text-[#111827]">Debit or credit card</p>
+                                            </div>
+                                            <p className="text-xs text-gray-500 font-medium">All major cards accepted</p>
                                         </div>
-                                        <input
-                                            type="text"
-                                            placeholder="Cardholder Name"
-                                            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl font-medium focus:outline-none focus:border-healsync-indigo transition-colors"
-                                            value={cardDetails.name}
-                                            onChange={e => setCardDetails({ ...cardDetails, name: e.target.value })}
-                                        />
+
+                                        <div className="space-y-4">
+                                            <div className="space-y-1.5">
+                                                <label className="text-sm font-bold text-gray-700">Card number:</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="0000 0000 0000 0000"
+                                                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                                />
+                                            </div>
+
+                                            <div className="flex gap-4">
+                                                <div className="flex-1 space-y-1.5">
+                                                    <label className="text-sm font-bold text-gray-700">Expiry date:</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="MM / YY"
+                                                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                                    />
+                                                </div>
+                                                <div className="flex-1 space-y-1.5">
+                                                    <div className="flex items-center justify-between">
+                                                        <label className="text-sm font-bold text-gray-700">CVC/CVV:</label>
+                                                        <FaInfoCircle className="text-gray-400 text-xs" />
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="123"
+                                                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <label className="text-sm font-bold text-gray-700">Cardholder name:</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="John Doe"
+                                                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                                />
+                                            </div>
+
+                                            <div className="flex gap-2 pt-2 grayscale opacity-80">
+                                                <FaCcVisa className="text-3xl text-blue-800" />
+                                                <FaCcMastercard className="text-3xl text-orange-600" />
+                                                <FaCcAmex className="text-3xl text-blue-500" />
+                                                <FaCcJcb className="text-3xl text-blue-900" />
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
 
@@ -204,12 +259,6 @@ const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm }) => {
                                             </div>
                                         </div>
 
-                                        {selectedWallet === 'esewa' && (
-                                            <div className="bg-green-50 text-green-700 px-4 py-2 rounded-lg text-sm font-bold flex justify-between items-center border border-green-100">
-                                                <span>Receiver:</span>
-                                                <span className="font-black">9847212026</span>
-                                            </div>
-                                        )}
                                         <input
                                             type="text"
                                             placeholder="Wallet ID / Mobile Number"
@@ -314,11 +363,11 @@ const LabTests = () => {
 
     const calculateTotal = (itemId = null) => {
         if (itemId) {
-            const product = products.find(p => p._id === itemId || p.id === itemId);
-            return (product.price * (cart[itemId] || 1));
+            const product = products.find(p => (p._id && p._id.toString() === itemId.toString()) || (p.id && p.id.toString() === itemId.toString()));
+            return product ? (product.price * (cart[itemId] || 1)) : 0;
         }
         return Object.entries(cart).reduce((total, [id, qty]) => {
-            const product = products.find(p => p._id === id || p.id === parseInt(id));
+            const product = products.find(p => (p._id && p._id.toString() === id.toString()) || (p.id && p.id.toString() === id.toString()));
             return total + (product ? product.price * qty : 0);
         }, 0);
     };
@@ -343,7 +392,7 @@ const LabTests = () => {
     };
 
     return (
-        <div className="space-y-12 max-w-7xl mx-auto animate-fade-up">
+        <div className="space-y-12 w-full animate-fade-up px-4 md:px-8">
             {isLoading && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/50 backdrop-blur-md">
                     <div className="w-12 h-12 border-4 border-healsync-indigo border-t-transparent rounded-full animate-spin"></div>
@@ -356,7 +405,7 @@ const LabTests = () => {
                         HealSync Pharmacy
                     </div>
                     <h1 className="text-5xl font-black text-[#111827] tracking-tighter">Wellness & Care Delivered</h1>
-                    <div className="relative mt-6 max-w-xl group">
+                    <div className="relative mt-6 max-w-2xl group">
                         <FaSearch className="absolute left-6 top-1/2 -translate-y-1/2 text-healsync-grey group-focus-within:text-healsync-indigo transition-colors" />
                         <input
                             type="text"
@@ -415,9 +464,10 @@ const LabTests = () => {
                 <div className="flex-grow">
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                         {filteredProducts.map(product => {
-                            const qty = cart[product.id] || 0;
+                            const pId = product._id || product.id;
+                            const qty = cart[pId] || 0;
                             return (
-                                <div key={product.id} className="healsync-card p-6 flex flex-col group h-full">
+                                <div key={pId} className="healsync-card p-6 flex flex-col group h-full">
                                     <div className="relative aspect-square rounded-[2rem] bg-healsync-bg overflow-hidden flex items-center justify-center border border-healsync-border mb-6">
                                         {product.image ? (
                                             <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" />
@@ -457,7 +507,7 @@ const LabTests = () => {
 
                                             {qty === 0 ? (
                                                 <button
-                                                    onClick={() => addToCart(product.id)}
+                                                    onClick={() => addToCart(pId)}
                                                     className="w-12 h-12 rounded-2xl bg-healsync-bg border border-healsync-border flex items-center justify-center text-[#111827] hover:bg-black hover:text-white transition-all shadow-sm active:scale-95"
                                                     title="Add to Cart"
                                                 >
@@ -466,14 +516,14 @@ const LabTests = () => {
                                             ) : (
                                                 <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-3">
                                                     <button
-                                                        onClick={() => updateQuantity(product.id, -1)}
+                                                        onClick={() => updateQuantity(pId, -1)}
                                                         className="w-8 h-8 flex items-center justify-center rounded-lg bg-white shadow-sm hover:text-red-500 transition-colors"
                                                     >
                                                         <FaMinus size={10} />
                                                     </button>
                                                     <span className="font-black text-sm w-4 text-center">{qty}</span>
                                                     <button
-                                                        onClick={() => updateQuantity(product.id, 1)}
+                                                        onClick={() => updateQuantity(pId, 1)}
                                                         className="w-8 h-8 flex items-center justify-center rounded-lg bg-white shadow-sm hover:text-green-500 transition-colors"
                                                     >
                                                         <FaPlus size={10} />
@@ -483,7 +533,7 @@ const LabTests = () => {
                                         </div>
 
                                         <button
-                                            onClick={() => handleBuyNow(product.id)}
+                                            onClick={() => handleBuyNow(pId)}
                                             className="w-full py-3 bg-healsync-indigo hover:bg-healsync-violet text-white rounded-xl font-bold uppercase tracking-wider text-sm shadow-healsync hover:shadow-healsync-hover transition-all active:scale-95"
                                         >
                                             Buy Now
@@ -508,6 +558,10 @@ const LabTests = () => {
                 onClose={() => setShowPayment(false)}
                 totalAmount={calculateTotal(checkoutItem)}
                 onConfirm={confirmPayment}
+                cart={cart}
+                setCart={setCart}
+                products={products}
+                checkoutItem={checkoutItem}
             />
         </div>
     );

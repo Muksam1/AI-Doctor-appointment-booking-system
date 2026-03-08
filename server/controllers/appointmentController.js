@@ -35,6 +35,16 @@ const bookAppointment = async (req, res) => {
         status: 'Pending'
     });
 
+    // Notify Admins
+    const io = req.app.get('socketio');
+    if (io) {
+        io.to('admins').emit('adminNotification', {
+            text: `New Booking! ${req.user.name} booked an appointment.`,
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'booking'
+        });
+    }
+
     res.status(201).json(appointment);
 };
 
@@ -42,10 +52,12 @@ const bookAppointment = async (req, res) => {
 // @route   GET /api/appointments/my
 // @access  Private/Patient
 const getMyAppointments = async (req, res) => {
-    const appointments = await Appointment.find({ patient: req.user._id }).populate('doctor', 'user specialization fee').populate({
-        path: 'doctor',
-        populate: { path: 'user', select: 'name' }
-    });
+    const appointments = await Appointment.find({ patient: req.user._id })
+        .populate({
+            path: 'doctor',
+            populate: { path: 'user', select: 'name image' },
+            select: 'user specialization fee'
+        });
     res.json(appointments);
 };
 
@@ -80,9 +92,26 @@ const updateAppointmentStatus = async (req, res) => {
     }
 };
 
+// @desc    Get booked slots for a doctor on a specific date
+// @route   GET /api/appointments/booked-slots/:doctorId/:date
+// @access  Public
+const getBookedSlots = async (req, res) => {
+    const { doctorId, date } = req.params;
+
+    const bookedAppointments = await Appointment.find({
+        doctor: doctorId,
+        date: new Date(date),
+        status: { $ne: 'Cancelled' }
+    }).select('timeSlot');
+
+    const bookedSlots = bookedAppointments.map(app => app.timeSlot);
+    res.json(bookedSlots);
+};
+
 module.exports = {
     bookAppointment,
     getMyAppointments,
     getDoctorAppointments,
-    updateAppointmentStatus
+    updateAppointmentStatus,
+    getBookedSlots
 };

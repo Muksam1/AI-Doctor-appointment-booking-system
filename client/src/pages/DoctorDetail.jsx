@@ -11,6 +11,7 @@ const DoctorDetail = () => {
     const [doctor, setDoctor] = useState(null);
     const [selectedDate, setSelectedDate] = useState('');
     const [selectedSlot, setSelectedSlot] = useState('');
+    const [bookedSlots, setBookedSlots] = useState([]);
     const [showBookingModal, setShowBookingModal] = useState(false);
 
     useEffect(() => {
@@ -20,6 +21,26 @@ const DoctorDetail = () => {
         };
         fetchDoctor();
     }, [id]);
+
+    useEffect(() => {
+        const fetchBookedSlots = async () => {
+            if (selectedDate && id) {
+                try {
+                    const { data } = await axios.get(`/api/appointments/booked-slots/${id}/${selectedDate}`);
+                    setBookedSlots(data);
+                    // Clear selected slot if it becomes booked
+                    if (data.includes(selectedSlot)) {
+                        setSelectedSlot('');
+                    }
+                } catch (error) {
+                    console.error('Error fetching booked slots:', error);
+                }
+            } else {
+                setBookedSlots([]);
+            }
+        };
+        fetchBookedSlots();
+    }, [selectedDate, id]);
 
     const handleBooking = async () => {
         if (!user) return navigate('/login');
@@ -142,17 +163,26 @@ const DoctorDetail = () => {
                             <div>
                                 <h4 className="text-sm font-bold text-[#111827] mb-3 uppercase tracking-wider">Choose Time</h4>
                                 <div className="grid grid-cols-3 gap-3">
-                                    {["09:00 AM", "10:00 AM", "11:00 AM", "02:00 PM", "03:00 PM", "04:00 PM"].map(slot => (
-                                        <button
-                                            key={slot}
-                                            type="button"
-                                            onClick={() => setSelectedSlot(slot)}
-                                            className={`py-3 border-2 rounded-xl text-[13px] font-black transition-all ${selectedSlot === slot ? 'bg-healsync-indigo text-white border-healsync-indigo shadow-healsync' : 'border-healsync-border hover:border-healsync-indigo text-[#111827]'
-                                                }`}
-                                        >
-                                            {slot}
-                                        </button>
-                                    ))}
+                                    {["09:00 AM", "10:00 AM", "11:00 AM", "02:00 PM", "03:00 PM", "04:00 PM"].map(slot => {
+                                        const isBooked = bookedSlots.includes(slot);
+                                        return (
+                                            <button
+                                                key={slot}
+                                                type="button"
+                                                onClick={() => !isBooked && setSelectedSlot(slot)}
+                                                disabled={isBooked}
+                                                className={`py-3 border-2 rounded-xl text-[13px] font-black transition-all ${isBooked
+                                                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-60'
+                                                    : selectedSlot === slot
+                                                        ? 'bg-healsync-indigo text-white border-healsync-indigo shadow-healsync'
+                                                        : 'border-healsync-border hover:border-healsync-indigo text-[#111827]'
+                                                    }`}
+                                            >
+                                                {slot}
+                                                {isBooked && <span className="block text-[9px] uppercase mt-1">Booked</span>}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>

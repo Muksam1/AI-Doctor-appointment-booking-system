@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import {
-    FaVideo, FaPhone, FaMicrophone, FaCamera, FaPaperclip, FaPaperPlane,
+    FaMicrophone, FaCamera, FaPaperclip, FaPaperPlane,
     FaSearch, FaImage, FaFileVideo, FaTimes, FaCheck
 } from 'react-icons/fa';
 
@@ -14,15 +14,14 @@ const Consult = () => {
     const [activeDoctor, setActiveDoctor] = useState(null);
     const [messages, setMessages] = useState({}); // { docId: [questions/answers] }
     const [inputValue, setInputValue] = useState('');
-    const [isCalling, setIsCalling] = useState(false);
 
     // File Upload State
     const fileInputRef = useRef(null);
     const [selectedFile, setSelectedFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
 
-    // Socket Ref
-    const socket = useRef(null);
+    // Socket from Context
+    const { socket } = useSocket();
     const doctorsRef = useRef([]);
 
     // --- Effects ---
@@ -77,38 +76,34 @@ const Consult = () => {
         fetchContacts();
     }, [user]);
 
-    // 2. Socket Connection
+    // 2. Socket Message Handler
     useEffect(() => {
-        if (!user) return;
+        console.log("Socket effect triggered. Socket connected:", socket?.connected);
+        if (!socket || !user) return;
 
-        socket.current = io('http://localhost:5000');
-        socket.current.emit('join', user._id);
+        const handleReceive = (data) => {
+            console.log("Message received via socket:", data);
+            // Identifier for the chat room (other person's ID)
+            const chatPartnerId = data.senderId;
 
-        socket.current.on('receiveMessage', (data) => {
-            // Find which doctor sent this (match senderId with doctor.user._id)
-            const senderDoc = doctorsRef.current.find(doc => doc.user._id === data.senderId);
+            const newMessage = {
+                id: Date.now(),
+                sender: 'them',
+                text: data.text,
+                type: data.type || 'text',
+                mediaUrl: data.mediaUrl,
+                timestamp: data.timestamp
+            };
 
-            if (senderDoc) {
-                const newMessage = {
-                    id: Date.now(),
-                    sender: 'them',
-                    text: data.text,
-                    type: data.type || 'text',
-                    mediaUrl: data.mediaUrl,
-                    timestamp: data.timestamp
-                };
-
-                setMessages(prev => ({
-                    ...prev,
-                    [senderDoc._id]: [...(prev[senderDoc._id] || []), newMessage]
-                }));
-            }
-        });
-
-        return () => {
-            socket.current.disconnect();
+            setMessages(prev => ({
+                ...prev,
+                [chatPartnerId]: [...(prev[chatPartnerId] || []), newMessage]
+            }));
         };
-    }, [user]);
+
+        socket.on('receiveMessage', handleReceive);
+        return () => socket.off('receiveMessage', handleReceive);
+    }, [socket, user]);
 
     // --- Handlers ---
     const handleSendMessage = (e) => {
@@ -126,25 +121,28 @@ const Consult = () => {
             timestamp: timestamp
         };
 
-        const docId = activeDoctor._id;
-        const currentMsgs = messages[docId] || [];
+        const chatPartnerId = activeDoctor.user?._id || activeDoctor._id;
+        const currentMsgs = messages[chatPartnerId] || [];
 
         // 1. Update UI Immediately (Optimistic)
         setMessages({
             ...messages,
-            [docId]: [...currentMsgs, newMessage]
+            [chatPartnerId]: [...currentMsgs, newMessage]
         });
 
         // 2. Emit to Server
-        if (socket.current) {
-            socket.current.emit('sendMessage', {
+        if (socket) {
+            console.log("Emitting sendMessage to:", chatPartnerId);
+            socket.emit('sendMessage', {
                 senderId: user._id,
-                receiverId: activeDoctor.user._id, // Send to the doctor's User ID
+                receiverId: chatPartnerId, // Send to the partner's User ID
                 text: inputValue,
                 type: newMessage.type,
                 mediaUrl: previewUrl,
                 timestamp: timestamp
             });
+        } else {
+            console.warn("Socket not available to send message!");
         }
 
         // Reset inputs
@@ -161,11 +159,13 @@ const Consult = () => {
         }
     };
 
-    const startCall = () => setIsCalling(true);
-    const endCall = () => setIsCalling(false);
 
     // --- Render Helpers ---
-    const getCurrentMessages = () => activeDoctor ? (messages[activeDoctor._id] || []) : [];
+    const getCurrentMessages = () => {
+        if (!activeDoctor) return [];
+        const chatPartnerId = activeDoctor.user?._id || activeDoctor._id;
+        return messages[chatPartnerId] || [];
+    };
 
     return (
         <div className="h-[calc(100vh-100px)] max-w-[1600px] mx-auto p-4 flex gap-6 animate-fade-up">
@@ -234,17 +234,6 @@ const Consult = () => {
                                         {activeDoctor.isOnline ? 'Active Now' : activeDoctor.lastSeen}
                                     </p>
                                 </div>
-                            </div>
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={startCall}
-                                    className="px-6 py-2.5 bg-healsync-indigo text-white rounded-xl font-bold flex items-center gap-2 hover:bg-healsync-indigo/90 transition-all shadow-lg active:scale-95"
-                                >
-                                    <FaVideo /> Video Call
-                                </button>
-                                <button className="p-3 text-healsync-indigo bg-healsync-indigo/10 rounded-xl hover:bg-healsync-indigo/20 transition-colors">
-                                    <FaPhone className="rotate-90" />
-                                </button>
                             </div>
                         </header>
 
@@ -369,49 +358,6 @@ const Consult = () => {
                     </div>
                 )}
 
-                {/* --- VIDEO CALL OVERLAY (Reused from previous step) --- */}
-                {isCalling && (
-                    <div className="absolute inset-0 z-[100] bg-[#111827] flex flex-col animate-in fade-in zoom-in duration-300">
-                        {/* Doctor's Camera (Main View) */}
-                        <div className="flex-grow relative overflow-hidden">
-                            <img src={activeDoctor?.user.image} alt="" className="w-full h-full object-cover opacity-60" />
-                            <div className="absolute inset-0 flex flex-col items-center justify-center text-white space-y-8">
-                                <div className="w-40 h-40 rounded-full border-4 border-healsync-indigo overflow-hidden shadow-2xl animate-float">
-                                    <img src={activeDoctor?.user.image} alt="" className="w-full h-full object-cover" />
-                                </div>
-                                <h2 className="text-4xl font-black tracking-tighter">{activeDoctor?.user.name}</h2>
-                                <div className="flex items-center gap-3 px-6 py-2 bg-white/10 rounded-full backdrop-blur-md">
-                                    <div className="w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
-                                    <span className="font-mono text-lg">00:15</span>
-                                </div>
-                            </div>
-
-                            {/* Self View (PIP) */}
-                            <div className="absolute top-8 right-8 w-48 h-64 bg-black/50 rounded-2xl border border-white/20 overflow-hidden backdrop-blur-md shadow-2xl">
-                                <div className="w-full h-full flex flex-col items-center justify-center text-white/50">
-                                    <FaCamera className="text-4xl mb-2" />
-                                    <p className="text-xs font-black uppercase">You</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Controls Bottom Bar */}
-                        <div className="h-32 bg-black/40 backdrop-blur-lg flex items-center justify-center gap-8 pb-4">
-                            <button className="w-16 h-16 rounded-full bg-white/10 hover:bg-white text-white hover:text-black transition-all flex items-center justify-center text-xl">
-                                <FaMicrophone />
-                            </button>
-                            <button
-                                onClick={endCall}
-                                className="w-20 h-20 rounded-full bg-red-500 hover:bg-red-600 text-white transition-all flex items-center justify-center text-3xl shadow-red-glow hover:scale-110"
-                            >
-                                <FaPhone className="rotate-[135deg]" />
-                            </button>
-                            <button className="w-16 h-16 rounded-full bg-white/10 hover:bg-white text-white hover:text-black transition-all flex items-center justify-center text-xl">
-                                <FaVideo />
-                            </button>
-                        </div>
-                    </div>
-                )}
             </main>
         </div>
     );

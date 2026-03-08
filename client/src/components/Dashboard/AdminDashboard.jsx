@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
+import { useSocket } from '../../context/SocketContext';
 import {
     FaUsers, FaUserMd, FaCalendarCheck, FaChartLine,
     FaPlus, FaTrash, FaEdit, FaBoxOpen,
@@ -10,10 +11,13 @@ import {
 
 const AdminDashboard = () => {
     const [searchParams] = useSearchParams();
+    const { socket } = useSocket();
     const [stats, setStats] = useState({ doctors: 0, appointments: 0, revenue: 0, patients: 0 });
     const [pendingDoctors, setPendingDoctors] = useState([]);
     const [approvedDoctors, setApprovedDoctors] = useState([]);
     const [allUsers, setAllUsers] = useState([]);
+    const [userPage, setUserPage] = useState(1);
+    const [userPages, setUserPages] = useState(1);
     const [products, setProducts] = useState([]);
     const [newProduct, setNewProduct] = useState({ name: '', price: '', category: 'Medicines', description: '', icon: 'FaCapsules', countInStock: 10 });
     const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'stats');
@@ -24,6 +28,16 @@ const AdminDashboard = () => {
         const tab = searchParams.get('tab');
         if (tab) setActiveTab(tab);
     }, [searchParams]);
+
+    // Real-time updates for Admin
+    useEffect(() => {
+        if (socket) {
+            socket.on('adminNotification', () => {
+                fetchData(); // Refresh stats, users, etc.
+            });
+            return () => socket.off('adminNotification');
+        }
+    }, [socket]);
 
     const fetchData = async () => {
         try {
@@ -36,8 +50,9 @@ const AdminDashboard = () => {
             const approvedRes = await axios.get('/api/admin/doctors/approved');
             setApprovedDoctors(approvedRes.data);
 
-            const usersRes = await axios.get('/api/admin/users');
-            setAllUsers(usersRes.data);
+            const usersRes = await axios.get(`/api/admin/users?pageNumber=${userPage}`);
+            setAllUsers(usersRes.data.users);
+            setUserPages(usersRes.data.pages);
 
             const prodData = await axios.get('/api/products');
             setProducts(prodData.data);
@@ -48,7 +63,7 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [userPage]);
 
     const verifyDoctor = async (id, status) => {
         setActionLoading(id + status);
@@ -57,6 +72,33 @@ const AdminDashboard = () => {
             await fetchData(); // Refresh all lists
         } catch (err) {
             alert('Failed to update doctor status');
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const deleteUser = async (id) => {
+        if (window.confirm("Are you sure you want to delete this user? This will also remove their doctor profile if applicable.")) {
+            setActionLoading(id + 'delete');
+            try {
+                await axios.delete(`/api/admin/user/${id}`);
+                await fetchData();
+            } catch (err) {
+                alert(err.response?.data?.message || 'Error deleting user');
+            } finally {
+                setActionLoading(null);
+            }
+        }
+    };
+
+    const toggleBanUser = async (id) => {
+        setActionLoading(id + 'ban');
+        try {
+            const { data } = await axios.patch(`/api/admin/user/${id}/ban`);
+            alert(data.message);
+            await fetchData();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Error banning/unbanning user');
         } finally {
             setActionLoading(null);
         }
@@ -85,7 +127,7 @@ const AdminDashboard = () => {
     };
 
     return (
-        <div className="space-y-12 animate-fade-up max-w-6xl mx-auto">
+        <div className="space-y-12 animate-fade-up w-full px-4 md:px-8">
             <header className="border-b border-healsync-border pb-8">
                 <h1 className="text-4xl font-black text-[#111827] tracking-tighter uppercase">Command Center</h1>
                 <p className="text-healsync-grey font-medium">Platform overview and management console</p>
@@ -104,8 +146,11 @@ const AdminDashboard = () => {
                         <div className="bg-healsync-indigo p-8 rounded-[2rem] text-white shadow-lg flex flex-col justify-between h-48">
                             <FaChartLine className="text-4xl opacity-20" />
                             <div>
-                                <p className="text-xs font-bold opacity-60 uppercase tracking-widest">Revenue</p>
-                                <h3 className="text-3xl font-black">Rs. {stats.revenue || 0}</h3>
+                                <p className="text-xs font-bold opacity-60 uppercase tracking-widest">Total Revenue</p>
+                                <h3 className="text-3xl font-black">Rs. {stats.totalRevenue || 0}</h3>
+                                <div className="mt-2 text-[10px] font-bold opacity-60 uppercase tracking-tighter">
+                                    Appt: Rs. {stats.appointmentRevenue || 0} | Meds: Rs. {stats.pharmacyRevenue || 0}
+                                </div>
                             </div>
                         </div>
                         <div className="bg-white p-8 rounded-[2rem] border border-healsync-border shadow-sm flex flex-col justify-between h-48">
@@ -161,7 +206,7 @@ const AdminDashboard = () => {
                             <h2 className="text-xl font-black text-[#111827] uppercase tracking-tighter">All Registered Users</h2>
                         </div>
                         <span className="bg-healsync-indigo/10 text-healsync-indigo px-3 py-1 rounded-lg text-xs font-bold">
-                            {allUsers.length} Users
+                            Page {userPage} of {userPages}
                         </span>
                     </div>
                     <div className="overflow-x-auto">
@@ -171,13 +216,13 @@ const AdminDashboard = () => {
                                     <th className="px-8 py-5">User</th>
                                     <th className="px-8 py-5">Email</th>
                                     <th className="px-8 py-5">Role</th>
-                                    <th className="px-8 py-5">Contact</th>
-                                    <th className="px-8 py-5">Joined</th>
+                                    <th className="px-8 py-5">Status</th>
+                                    <th className="px-8 py-5 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-healsync-border">
                                 {allUsers.map(u => (
-                                    <tr key={u._id} className="hover:bg-healsync-bg/30 transition-colors">
+                                    <tr key={u._id} className={`hover:bg-healsync-bg/30 transition-colors ${u.isBanned ? 'bg-red-50/30' : ''}`}>
                                         <td className="px-8 py-5">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-full bg-healsync-indigo/10 overflow-hidden border border-healsync-border shrink-0">
@@ -187,23 +232,51 @@ const AdminDashboard = () => {
                                                         className="w-full h-full object-cover"
                                                     />
                                                 </div>
-                                                <span className="font-black text-[#111827] text-sm">{u.name}</span>
+                                                <div className="flex flex-col">
+                                                    <span className="font-black text-[#111827] text-sm">{u.name}</span>
+                                                    <span className="text-[10px] text-healsync-grey font-bold uppercase tracking-wider">{new Date(u.createdAt).toLocaleDateString()}</span>
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-8 py-5 text-sm text-healsync-grey font-medium">{u.email}</td>
                                         <td className="px-8 py-5">
                                             <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-widest border ${u.role === 'admin'
-                                                    ? 'bg-purple-50 text-purple-600 border-purple-200'
-                                                    : u.role === 'doctor'
-                                                        ? 'bg-healsync-indigo/10 text-healsync-indigo border-healsync-indigo/20'
-                                                        : 'bg-teal-50 text-teal-600 border-teal-200'
+                                                ? 'bg-purple-50 text-purple-600 border-purple-200'
+                                                : u.role === 'doctor'
+                                                    ? 'bg-healsync-indigo/10 text-healsync-indigo border-healsync-indigo/20'
+                                                    : 'bg-teal-50 text-teal-600 border-teal-200'
                                                 }`}>
                                                 {u.role}
                                             </span>
                                         </td>
-                                        <td className="px-8 py-5 text-sm text-healsync-grey font-medium">{u.contact || '—'}</td>
-                                        <td className="px-8 py-5 text-sm text-healsync-grey font-medium">
-                                            {new Date(u.createdAt).toLocaleDateString()}
+                                        <td className="px-8 py-5">
+                                            {u.isBanned ? (
+                                                <span className="text-red-500 font-bold text-xs uppercase italic">Banned</span>
+                                            ) : (
+                                                <span className="text-green-500 font-bold text-xs uppercase">Active</span>
+                                            )}
+                                        </td>
+                                        <td className="px-8 py-5 text-right">
+                                            <div className="flex justify-end gap-2">
+                                                <button
+                                                    onClick={() => toggleBanUser(u._id)}
+                                                    disabled={u.role === 'admin' || actionLoading === u._id + 'ban'}
+                                                    title={u.isBanned ? "Unban User" : "Ban User"}
+                                                    className={`p-2 rounded-lg transition-all ${u.isBanned
+                                                        ? 'bg-green-50 text-green-600 hover:bg-green-600 hover:text-white'
+                                                        : 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white'} disabled:opacity-30 disabled:cursor-not-allowed`}
+                                                >
+                                                    <FaUserShield size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => deleteUser(u._id)}
+                                                    disabled={u.role === 'admin' || actionLoading === u._id + 'delete'}
+                                                    title="Delete User"
+                                                    className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                                                >
+                                                    <FaTrash size={16} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -216,6 +289,26 @@ const AdminDashboard = () => {
                                 )}
                             </tbody>
                         </table>
+                    </div>
+                    {/* Pagination Controls */}
+                    <div className="p-6 bg-gray-50/50 border-t border-healsync-border flex justify-center gap-4">
+                        <button
+                            onClick={() => setUserPage(prev => Math.max(prev - 1, 1))}
+                            disabled={userPage === 1}
+                            className="px-4 py-2 bg-white border border-healsync-border rounded-xl text-xs font-black uppercase tracking-wider hover:bg-healsync-indigo hover:text-white disabled:opacity-30 transition-all"
+                        >
+                            Previous
+                        </button>
+                        <div className="flex items-center text-xs font-black text-healsync-indigo">
+                            {userPage} / {userPages}
+                        </div>
+                        <button
+                            onClick={() => setUserPage(prev => Math.min(prev + 1, userPages))}
+                            disabled={userPage === userPages}
+                            className="px-4 py-2 bg-white border border-healsync-border rounded-xl text-xs font-black uppercase tracking-wider hover:bg-healsync-indigo hover:text-white disabled:opacity-30 transition-all"
+                        >
+                            Next
+                        </button>
                     </div>
                 </div>
             )}
