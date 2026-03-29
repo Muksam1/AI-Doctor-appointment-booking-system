@@ -5,14 +5,30 @@ import { FaRegThumbsUp, FaCheckCircle, FaMapMarkerAlt, FaFilter, FaStethoscope }
 
 const Doctors = () => {
     const [doctors, setDoctors] = useState([]);
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const search = searchParams.get('search') || '';
     const specialization = searchParams.get('specialization') || '';
 
+    const handleFilterChange = (spec) => {
+        const newParams = new URLSearchParams(searchParams);
+        if (specialization === spec) {
+            newParams.set('specialization', ''); // Toggle off
+        } else {
+            newParams.set('specialization', spec);
+        }
+        setSearchParams(newParams);
+    };
+
     useEffect(() => {
         const fetchDoctors = async () => {
-            const { data } = await axios.get(`/api/doctors?search=${search}&specialization=${specialization}`);
-            setDoctors(data);
+            try {
+                const { data } = await axios.get(`/api/doctors?search=${search}&specialization=${specialization}`);
+                // API returns { doctors: [...], totalPages, ... }
+                setDoctors(Array.isArray(data) ? data : (data.doctors || []));
+            } catch (err) {
+                console.error('Failed to fetch doctors:', err);
+                setDoctors([]);
+            }
         };
         fetchDoctors();
     }, [search, specialization]);
@@ -22,15 +38,18 @@ const Doctors = () => {
             <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-healsync-border pb-10">
                 <div className="space-y-3">
                     <div className="flex items-center gap-2 text-healsync-indigo font-black text-xs uppercase tracking-widest">
-                        <FaMapMarkerAlt /> Available in KTM
+                        <FaMapMarkerAlt /> Available Specialists
                     </div>
                     <h1 className="text-4xl font-black text-[#111827] tracking-tighter">
-                        {doctors.length} Verified Specialists
+                        {doctors.length} Verified {specialization ? `${specialization}s` : 'Doctors'}
                     </h1>
                 </div>
                 <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-healsync-border">
-                    <button className="px-6 py-2.5 bg-healsync-bg text-healsync-indigo rounded-xl text-sm font-black flex items-center gap-2 shadow-inner">
-                        <FaFilter /> Filters
+                    <button 
+                        onClick={() => handleFilterChange('')}
+                        className={`px-6 py-2.5 rounded-xl text-sm font-black flex items-center gap-2 transition-all ${!specialization ? 'bg-healsync-indigo text-white shadow-lg' : 'bg-healsync-bg text-healsync-indigo opacity-70 hover:opacity-100'}`}
+                    >
+                        All Doctors
                     </button>
                     <p className="text-xs font-black text-healsync-grey uppercase tracking-widest px-4">Sort: Relevance</p>
                 </div>
@@ -43,10 +62,15 @@ const Doctors = () => {
                         <div>
                             <h3 className="font-black text-xs uppercase mb-6 tracking-widest text-healsync-grey">Specialization</h3>
                             <div className="space-y-4">
-                                {['Dentist', 'Gynecologist', 'Physician', 'Orthopedist'].map(s => (
+                                {['Dentist', 'Gynecologist', 'Physician', 'Orthopedist', 'Cardiologist', 'Neurologist'].map(s => (
                                     <label key={s} className="flex items-center gap-3 text-sm font-bold text-[#111827] cursor-pointer group">
-                                        <input type="checkbox" className="w-5 h-5 accent-healsync-indigo rounded-lg border-healsync-border" />
-                                        <span className="group-hover:text-healsync-indigo transition-colors">{s}</span>
+                                        <input 
+                                            type="checkbox" 
+                                            className="w-5 h-5 accent-healsync-indigo rounded-lg border-healsync-border" 
+                                            checked={specialization === s}
+                                            onChange={() => handleFilterChange(s)}
+                                        />
+                                        <span className={`${specialization === s ? 'text-healsync-indigo font-black' : 'group-hover:text-healsync-indigo'} transition-colors`}>{s}</span>
                                     </label>
                                 ))}
                             </div>

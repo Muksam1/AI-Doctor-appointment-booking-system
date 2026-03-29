@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import PatientDashboard from '../components/Dashboard/PatientDashboard';
@@ -7,23 +8,27 @@ import AdminDashboard from '../components/Dashboard/AdminDashboard';
 
 const Dashboard = () => {
     const { user } = useAuth();
+    const [searchParams] = useSearchParams();
+    const mode = searchParams.get('mode');
 
     if (!user) return null;
 
     return (
-        <div className="space-y-6">
-            <header className="flex justify-between items-center mb-10">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-900">Welcome back, {user.name}</h1>
-                    <p className="text-slate-500 uppercase text-xs tracking-widest font-bold mt-1">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-10 space-y-10 animate-fade-up">
+            <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="space-y-1">
+                    <h1 className="text-4xl font-black text-[#111827] tracking-tighter">Welcome back, {user.name}</h1>
+                    <p className="text-healsync-grey font-medium uppercase text-[10px] tracking-[0.2em]">
                         {user.role} Dashboard
                     </p>
                 </div>
             </header>
 
-            {user.role === 'patient' && <PatientDashboard />}
-            {user.role === 'doctor' && <DoctorDashboard />}
-            {user.role === 'admin' && <AdminDashboard />}
+            <div className="w-full">
+                {user.role === 'patient' && mode !== 'doctor' && <PatientDashboard />}
+                {(user.role === 'doctor' || (user.role === 'patient' && mode === 'doctor')) && <DoctorDashboard />}
+                {user.role === 'admin' && <AdminDashboard />}
+            </div>
         </div>
     );
 };

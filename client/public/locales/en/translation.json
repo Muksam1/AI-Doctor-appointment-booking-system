@@ -1,0 +1,26 @@
+{
+  "common": {
+    "welcome": "Welcome to HealSync",
+    "search": "Search Doctors",
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout",
+    "dashboard": "Dashboard",
+    "appointments": "Appointments",
+    "settings": "Settings",
+    "profile": "Profile"
+  },
+  "doctor": {
+    "specialization": "Specialization",
+    "experience": "Experience",
+    "fee": "Consultation Fee",
+    "bookNow": "Book Now",
+    "availability": "Availability"
+  },
+  "booking": {
+    "selectDate": "Select Date",
+    "selectSlot": "Select Time Slot",
+    "confirmBooking": "Confirm Booking",
+    "noAvailability": "No availability on this date"
+  }
+}

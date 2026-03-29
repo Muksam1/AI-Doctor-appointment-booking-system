@@ -10,27 +10,37 @@ const PaymentVerification = () => {
     const [message, setMessage] = useState('Checking payment status...');
 
     const gateway = searchParams.get('gateway');
-    const data = searchParams.get('data'); // eSewa returns base64 data in 'data' query param
+    const appointmentId = searchParams.get('appointment');
+    const orderId = searchParams.get('order');
+    const pidx = searchParams.get('pidx'); // Khalti
+    const oid = searchParams.get('oid');  // eSewa
+    const amt = searchParams.get('amt');
+    const refId = searchParams.get('refId');
 
     useEffect(() => {
         const verifyPayment = async () => {
             try {
-                if (gateway === 'esewa' && data) {
-                    const response = await axios.get(`/api/payments/esewa/verify?encodedData=${data}`);
-                    if (response.data.success) {
-                        if (response.data.isOrder) {
-                            navigate('/payment-success');
-                        } else {
-                            setStatus('success');
-                            setMessage('Payment verified successfully! Your appointment is now confirmed.');
-                        }
-                    } else {
-                        setStatus('error');
-                        setMessage(response.data.message || 'Payment verification failed.');
+                // Determine what we are verifying: Appointment or Order
+                const entityId = appointmentId || orderId;
+                const entityType = appointmentId ? 'appointment' : 'order';
+
+                if (gateway === 'khalti' && pidx) {
+                    const { data } = await axios.post('/api/payments/khalti/verify', { pidx, appointmentId: entityId, type: entityType });
+                    if (data.success) {
+                        setStatus('success');
+                        setMessage('Payment verified via Khalti! Your booking is confirmed.');
+                    }
+                } else if (gateway === 'esewa' && oid && amt && refId) {
+                    const { data } = await axios.get('/api/payments/esewa/verify', {
+                        params: { oid, amt, refId, type: entityType }
+                    });
+                    if (data.success) {
+                        setStatus('success');
+                        setMessage('Payment verified via eSewa! Your booking is confirmed.');
                     }
                 } else {
                     setStatus('error');
-                    setMessage('Invalid payment data received.');
+                    setMessage('Missing valid payment parameters.');
                 }
             } catch (err) {
                 console.error("Verification Error:", err);
@@ -40,7 +50,7 @@ const PaymentVerification = () => {
         };
 
         verifyPayment();
-    }, [gateway, data]);
+    }, [gateway, appointmentId, orderId, pidx, oid, amt, refId]);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-healsync-bg p-6">
@@ -60,13 +70,17 @@ const PaymentVerification = () => {
                         <div className="w-24 h-24 bg-healsync-mint/10 rounded-full flex items-center justify-center mx-auto">
                             <FaCheckCircle className="text-5xl text-healsync-mint" />
                         </div>
-                        <h2 className="text-3xl font-black text-[#111827]">Payment Success!</h2>
+                        <h2 className="text-3xl font-black text-[#111827]">Payment Verified!</h2>
                         <p className="text-healsync-grey font-medium">{message}</p>
                         <button
-                            onClick={() => navigate('/dashboard')}
+                            onClick={() => navigate('/payment-success', { 
+                                state: { 
+                                    [appointmentId ? 'appointmentData' : 'orderData']: { _id: appointmentId || orderId } 
+                                } 
+                            })}
                             className="w-full py-4 bg-healsync-indigo text-white rounded-2xl font-black shadow-lg hover:shadow-xl hover:bg-[#111827] transition-all"
                         >
-                            Back to Dashboard
+                            View Receipt & Receipt
                         </button>
                     </div>
                 )}

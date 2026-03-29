@@ -1,0 +1,26 @@
+{
+  "common": {
+    "welcome": "HealSync मा स्वागत छ",
+    "search": "डाक्टरहरू खोज्नुहोस्",
+    "login": "लगइन",
+    "register": "दर्ता गर्नुहोस्",
+    "logout": "लगआउट",
+    "dashboard": "ड्यासबोर्ड",
+    "appointments": "अपोइन्टमेन्टहरू",
+    "settings": "सेटिङहरू",
+    "profile": "प्रोफाइल"
+  },
+  "doctor": {
+    "specialization": "विशेषज्ञता",
+    "experience": "अनुभव",
+    "fee": "परामर्श शुल्क",
+    "bookNow": "अहिले बुक गर्नुहोस्",
+    "availability": "उपलब्धता"
+  },
+  "booking": {
+    "selectDate": "मिति चयन गर्नुहोस्",
+    "selectSlot": "समय स्लट चयन गर्नुहोस्",
+    "confirmBooking": "बुकिङ पुष्टि गर्नुहोस्",
+    "noAvailability": "यस मितिमा उपलब्धता छैन"
+  }
+}

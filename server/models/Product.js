@@ -9,7 +9,7 @@ const productSchema = mongoose.Schema({
     price: {
         type: Number,
         required: true,
-        default: 0
+        min: 0
     },
     category: {
         type: String,
@@ -18,11 +18,25 @@ const productSchema = mongoose.Schema({
     },
     description: {
         type: String,
-        required: true
+        required: true,
+        minlength: 10,
+        maxlength: 5000
     },
     image: {
         type: String,
-        default: ''
+        default: '',
+        validate: {
+            validator: function(value) {
+                if (!value) return true;
+                try {
+                    new URL(value);
+                    return true;
+                } catch {
+                    return false;
+                }
+            },
+            message: 'Invalid image URL'
+        }
     },
     icon: {
         type: String, // String representation of icon name if no image
@@ -35,11 +49,21 @@ const productSchema = mongoose.Schema({
     countInStock: {
         type: Number,
         required: true,
-        default: 0
+        default: 0,
+        min: 0
+    },
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true,
+        ref: 'User'
     }
 }, {
     timestamps: true
 });
+
+// Add indexes
+productSchema.index({ category: 1 });
+productSchema.index({ name: 'text', description: 'text' }); // For search
 
 const Product = mongoose.model('Product', productSchema);
 

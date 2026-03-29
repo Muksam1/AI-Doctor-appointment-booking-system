@@ -13,14 +13,54 @@
 }
 
 @layer base {
+  /* Dynamic Variables to support smooth toggling */
+  :root {
+    --color-healsync-text: #1F2937;
+  }
+  
+  .dark {
+    --color-healsync-bg: #0F172A; /* Slate 900 */
+    --color-healsync-border: #1E293B; /* Slate 800 */
+    --color-healsync-grey: #94A3B8; /* Slate 400 */
+    --color-healsync-text: #F8FAFC;
+    color: #F8FAFC;
+  }
+  
+  /* Universal overrides for specific text colors inside dark mode */
+  .dark .text-\[\#111827\], .dark .text-\[\#1F2937\], .dark h1, .dark h2, .dark h3, .dark span, .dark p {
+    color: inherit; 
+  }
+  
+  /* Retain specific brand/status colors */
+  .dark .text-healsync-indigo { color: var(--color-healsync-indigo); }
+  .dark .text-healsync-mint { color: var(--color-healsync-mint); }
+  .dark .text-healsync-violet { color: var(--color-healsync-violet); }
+  .dark .text-gray-500 { color: #94A3B8; }
+  .dark .text-red-500 { color: #EF4444; }
+  .dark .text-amber-400 { color: #FBBF24; }
+  .dark .text-teal-600 { color: #14B8A6; }
+  
+  /* Force dark backgrounds on hardcoded white backgrounds */
+  .dark .bg-white, .dark .bg-white\/40, .dark .bg-gray-50, .dark .bg-white\/80 {
+    background-color: #1E293B !important; /* Slate 800 */
+  }
+  .dark .bg-white\/60 {
+    background-color: rgba(30, 41, 59, 0.8) !important;
+  }
+  .dark .bg-gray-100 {
+    background-color: #334155 !important;
+  }
+  .dark .bg-red-50 { background-color: rgba(239, 68, 68, 0.1) !important; }
+  .dark .bg-teal-50 { background-color: rgba(20, 184, 166, 0.1) !important; }
+
   html {
     font-size: 18px;
-    /* Increased from default 16px to scale all rem units */
   }
 
   body {
-    @apply bg-healsync-bg text-[#1F2937] antialiased;
+    @apply bg-healsync-bg transition-colors duration-300;
     font-family: 'Inter', system-ui, sans-serif;
+    color: var(--color-healsync-text);
   }
 }
 
@@ -30,11 +70,11 @@
   }
 
   .healsync-card {
-    @apply bg-white/80 backdrop-blur-md border border-white/40 rounded-[3rem] shadow-healsync overflow-hidden transition-all duration-500 hover:shadow-healsync-hover hover:-translate-y-1.5;
+    @apply bg-white/80 backdrop-blur-md border border-white/40 rounded-[3rem] shadow-healsync overflow-hidden transition-all duration-500 hover:shadow-healsync-hover hover:-translate-y-1.5 dark:bg-slate-800/80 dark:border-slate-700/40;
   }
 
   .input-field {
-    @apply px-6 py-5 bg-white/50 border border-healsync-border rounded-2xl focus:outline-none focus:ring-2 focus:ring-healsync-indigo/20 focus:border-healsync-indigo text-lg font-medium transition-all;
+    @apply px-6 py-5 bg-white/50 border border-healsync-border rounded-2xl focus:outline-none focus:ring-2 focus:ring-healsync-indigo/20 focus:border-healsync-indigo text-lg font-medium transition-all dark:bg-slate-800/50 dark:border-slate-600 dark:text-white dark:focus:ring-healsync-indigo;
   }
 
   .status-pill {
@@ -42,7 +82,7 @@
   }
 
   .glass-panel {
-    @apply bg-white/60 backdrop-blur-xl border border-white/40 rounded-[2.5rem] shadow-healsync;
+    @apply bg-white/60 backdrop-blur-xl border border-white/40 rounded-[2.5rem] shadow-healsync dark:bg-slate-800/60 dark:border-slate-700/40;
   }
 }
 

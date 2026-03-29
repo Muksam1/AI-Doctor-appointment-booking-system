@@ -1,163 +1,577 @@
-const Doctor = require('../models/Doctor');
 const User = require('../models/User');
+const Doctor = require('../models/Doctor');
 const Patient = require('../models/Patient');
+const Appointment = require('../models/Appointment');
+const Review = require('../models/Review');
+const { sendEmail } = require('../config/sendEmail');
+const { createNotification } = require('./notificationController');
 
-// @desc    Get all pending doctor applications
-// @route   GET /api/admin/doctors/pending
+// @desc    Get admin dashboard stats
+// @route   GET /api/admin/dashboard
 // @access  Private/Admin
-const getPendingDoctors = async (req, res) => {
-    const doctors = await Doctor.find({ applicationStatus: 'pending' })
-        .populate('user', 'name email image');
-    res.json(doctors);
-};
+const getAdminDashboard = async (req, res) => {
+    try {
+        // User statistics
+        const totalUsers = await User.countDocuments();
+        const totalPatients = await User.countDocuments({ role: 'patient' });
+        const totalDoctors = await User.countDocuments({ role: 'doctor' });
+        const totalAdmins = await User.countDocuments({ role: 'admin' });
 
-// @desc    Approve or reject a doctor application
-// @route   PUT /api/admin/doctors/:id/verify
-// @access  Private/Admin
-const verifyDoctor = async (req, res) => {
-    const { status } = req.body; // 'verified' or 'rejected'
-    const doctor = await Doctor.findById(req.params.id);
+        // Doctor statistics
+        const verifiedDoctors = await Doctor.countDocuments({ isVerified: true });
+        const pendingDoctors = await Doctor.countDocuments({ applicationStatus: 'pending' });
+        const rejectedDoctors = await Doctor.countDocuments({ applicationStatus: 'rejected' });
 
-    if (!doctor) {
-        res.status(404);
-        throw new Error('Doctor not found');
+        // Appointment statistics
+        const totalAppointments = await Appointment.countDocuments();
+        const pendingAppointments = await Appointment.countDocuments({ status: 'Pending' });
+        const confirmedAppointments = await Appointment.countDocuments({ status: 'Confirmed' });
+        const completedAppointments = await Appointment.countDocuments({ status: 'Completed' });
+        const cancelledAppointments = await Appointment.countDocuments({ status: 'Cancelled' });
+
+        // Revenue statistics (last 30 days)
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const monthlyRevenue = await Appointment.aggregate([
+            {
+                $match: {
+                    status: 'Completed',
+                    paymentStatus: 'Paid',
+                    createdAt: { $gte: thirtyDaysAgo }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: '$fee' }
+                }
+            }
+        ]);
+
+        // Recent activities
+        const recentAppointments = await Appointment.find()
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .populate('patient', 'name')
+            .populate('doctor', 'user')
+            .populate('doctor.user', 'name');
+
+        const recentUsers = await User.find()
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .select('name email role createdAt');
+
+        res.json({
+            stats: {
+                users: {
+                    total: totalUsers,
+                    patients: totalPatients,
+                    doctors: totalDoctors,
+                    admins: totalAdmins
+                },
+                doctors: {
+                    verified: verifiedDoctors,
+                    pending: pendingDoctors,
+                    rejected: rejectedDoctors
+                },
+                appointments: {
+                    total: totalAppointments,
+                    pending: pendingAppointments,
+                    confirmed: confirmedAppointments,
+                    completed: completedAppointments,
+                    cancelled: cancelledAppointments
+                },
+                revenue: {
+                    monthly: monthlyRevenue[0]?.total || 0
+                }
+            },
+            recentActivities: {
+                appointments: recentAppointments,
+                users: recentUsers
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
-
-    if (status === 'rejected') {
-        doctor.applicationStatus = 'rejected';
-        doctor.isVerified = false;
-        await doctor.save();
-        res.json({ message: 'Doctor application rejected' });
-    } else if (status === 'verified') {
-        doctor.applicationStatus = 'approved';
-        doctor.isVerified = true;
-        await doctor.save();
-        res.json({ message: 'Doctor approved and is now visible to patients' });
-    } else {
-        res.status(400);
-        throw new Error('Invalid status value');
-    }
 };
 
-// @desc    Get all approved doctors (for admin view)
-// @route   GET /api/admin/doctors/approved
-// @access  Private/Admin
-const getApprovedDoctors = async (req, res) => {
-    const doctors = await Doctor.find({ applicationStatus: 'approved' })
-        .populate('user', 'name email image');
-    res.json(doctors);
-};
-
-// @desc    Get all users (for admin)
+// @desc    Get all users with pagination
 // @route   GET /api/admin/users
 // @access  Private/Admin
 const getAllUsers = async (req, res) => {
-    const pageSize = 10;
-    const page = Number(req.query.pageNumber) || 1;
+    try {
+        const page = parseInt(req.query.page) || parseInt(req.query.pageNumber) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const search = req.query.search || '';
+        const role = req.query.role || '';
 
-    const count = await User.countDocuments({});
-    const users = await User.find({})
-        .limit(pageSize)
-        .skip(pageSize * (page - 1));
+        let query = {};
 
-    res.json({ users, page, pages: Math.ceil(count / pageSize) });
+        if (search) {
+            query.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        if (role) {
+            query.role = role;
+        }
+
+        const users = await User.find(query)
+            .select('-password')
+            .sort({ createdAt: -1 })
+            .limit(limit * 1)
+            .skip((page - 1) * limit);
+
+        const total = await User.countDocuments(query);
+
+        res.json({
+            users,
+            pages: Math.ceil(total / limit),
+            totalPages: Math.ceil(total / limit),
+            currentPage: page,
+            totalUsers: total
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };
 
-// @desc    Delete a user
+// @desc    Get all doctors with applications
+// @route   GET /api/admin/doctors
+// @access  Private/Admin
+const getAllDoctors = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || parseInt(req.query.pageNumber) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const status = req.query.status || 'all'; // all, pending, approved, rejected
+
+        let query = {};
+        if (status !== 'all') {
+            query.applicationStatus = status;
+        }
+
+        const doctors = await Doctor.find(query)
+            .populate('user', 'name email contact image')
+            .sort({ createdAt: -1 })
+            .limit(limit * 1)
+            .skip((page - 1) * limit);
+
+        const total = await Doctor.countDocuments(query);
+
+        res.json({
+            doctors,
+            pages: Math.ceil(total / limit),
+            totalPages: Math.ceil(total / limit),
+            currentPage: page,
+            totalDoctors: total
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Approve or reject doctor application
+// @route   PUT /api/admin/doctors/:id/status
+// @access  Private/Admin
+const updateDoctorStatus = async (req, res) => {
+    try {
+        const { status, reason } = req.body; // status: 'approved' or 'rejected'
+
+        const doctor = await Doctor.findById(req.params.id).populate('user', 'name email role');
+
+        if (!doctor) {
+            return res.status(404).json({ message: 'Doctor not found' });
+        }
+
+        doctor.applicationStatus = status;
+        doctor.isVerified = status === 'approved';
+
+        if (status === 'rejected' && reason) {
+            doctor.rejectionReason = reason;
+        }
+
+        await doctor.save();
+        
+        // Promote user role from patient to doctor if approved
+        if (status === 'approved' && doctor.user && doctor.user.role === 'patient') {
+            await User.findByIdAndUpdate(doctor.user._id, { role: 'doctor' });
+            console.log(`User ${doctor.user.email} promoted to doctor role`);
+        }
+
+        const subject = status === 'approved' ? 'Application Approved!' : 'Application Status Update';
+        const message = status === 'approved'
+            ? `Congratulations! Your doctor application has been approved. You can now start accepting appointments.`
+            : `Your doctor application has been ${status}. ${reason ? `Reason: ${reason}` : ''}`;
+
+        // Send email notification (Wrapped in try-catch to prevent 500 if email fails)
+        try {
+            await sendEmail({
+                to: doctor.user.email,
+                subject,
+                html: `<h2>${subject}</h2><p>${message}</p>`
+            });
+        } catch (emailError) {
+            console.error('Failed to send verification email:', emailError.message);
+        }
+
+        // Database Notification for Doctor
+        await createNotification(
+            doctor.user._id,
+            'system',
+            subject,
+            message
+        );
+
+        // Self-notification for admin (activity log)
+        await createNotification(
+            req.user._id,
+            'system',
+            'Application Processed',
+            `You successfully ${status} the doctor application for ${doctor.user.name}.`
+        );
+
+        res.json({
+            success: true,
+            doctor,
+            message: `Doctor application ${status} successfully`
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Get all appointments
+// @route   GET /api/admin/appointments
+// @access  Private/Admin
+const getAllAppointments = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const status = req.query.status || '';
+        const date = req.query.date || '';
+
+        let query = {};
+
+        if (status) {
+            query.status = status;
+        }
+
+        if (date) {
+            const startDate = new Date(date);
+            const endDate = new Date(date);
+            endDate.setDate(endDate.getDate() + 1);
+            query.date = { $gte: startDate, $lt: endDate };
+        }
+
+        const appointments = await Appointment.find(query)
+            .populate('patient', 'name email contact')
+            .populate('doctor', 'user specialization')
+            .populate('doctor.user', 'name email')
+            .sort({ createdAt: -1 })
+            .limit(limit * 1)
+            .skip((page - 1) * limit);
+
+        const total = await Appointment.countDocuments(query);
+
+        res.json({
+            appointments,
+            totalPages: Math.ceil(total / limit),
+            currentPage: page,
+            totalAppointments: total
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Ban or unban user
+// @route   PATCH /api/admin/user/:id/ban
+// @access  Private/Admin
+const toggleUserBan = async (req, res) => {
+    try {
+        const { isBanned = true, reason = 'Violated system policies' } = req.body;
+
+        const user = await User.findById(req.params.id);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Prevent admin from banning themselves
+        if (user._id.toString() === req.user._id.toString()) {
+            return res.status(400).json({ message: 'Cannot perform action on yourself' });
+        }
+
+        user.isBanned = isBanned;
+        if (isBanned) {
+            user.banReason = reason;
+        } else {
+            user.banReason = '';
+        }
+
+        await user.save();
+
+        res.json({
+            success: true,
+            user: {
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                isBanned: user.isBanned
+            },
+            message: `User ${isBanned ? 'banned' : 'unbanned'} successfully`
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Delete user and all associated records
 // @route   DELETE /api/admin/user/:id
 // @access  Private/Admin
 const deleteUser = async (req, res) => {
-    const user = await User.findById(req.params.id);
+    try {
+        const user = await User.findById(req.params.id);
 
-    if (user) {
-        if (user.role === 'admin') {
-            res.status(400);
-            throw new Error('Cannot delete admin user');
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
         }
 
-        // Delete associated profile
+        // Prevent admin from deleting themselves
+        if (user._id.toString() === req.user._id.toString()) {
+            return res.status(400).json({ message: 'Cannot delete yourself' });
+        }
+
+        // 1. If Doctor, delete doctor profile, reviews, and appointments
         if (user.role === 'doctor') {
-            await Doctor.findOneAndDelete({ user: user._id });
-        } else if (user.role === 'patient') {
+            const doctor = await Doctor.findOne({ user: user._id });
+            if (doctor) {
+                await Review.deleteMany({ doctor: doctor._id });
+                await Appointment.deleteMany({ doctor: doctor._id });
+                await Doctor.findByIdAndDelete(doctor._id);
+            }
+        }
+
+        // 2. If Patient, delete reviews, appointments, and patient profile
+        if (user.role === 'patient') {
+            await Review.deleteMany({ patient: user._id });
+            await Appointment.deleteMany({ patient: user._id });
             await Patient.findOneAndDelete({ user: user._id });
         }
 
+        // 3. Delete the user
         await User.findByIdAndDelete(req.params.id);
-        res.json({ message: 'User removed' });
-    } else {
-        res.status(404);
-        throw new Error('User not found');
+
+        // Notify Admin of successful deletion
+        await createNotification(
+            req.user._id,
+            'admin',
+            'User Deleted',
+            `You successfully deleted user ${user.name} and all of their associated records.`
+        );
+
+        res.json({
+            success: true,
+            message: 'User and all associated records deleted successfully'
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 };
 
-// @desc    Toggle Ban user
-// @route   PATCH /api/admin/user/:id/ban
+// @desc    Get revenue analytics
+// @route   GET /api/admin/analytics/revenue
 // @access  Private/Admin
-const toggleBanUser = async (req, res) => {
-    const user = await User.findById(req.params.id);
+const getRevenueAnalytics = async (req, res) => {
+    try {
+        const { period = 'monthly' } = req.query; // daily, weekly, monthly, yearly
 
-    if (user) {
-        if (user.role === 'admin') {
-            res.status(400);
-            throw new Error('Cannot ban admin user');
+        let groupBy = {};
+        let dateFormat = '';
+
+        switch (period) {
+            case 'daily':
+                groupBy = { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } };
+                dateFormat = '%Y-%m-%d';
+                break;
+            case 'weekly':
+                groupBy = { $dateToString: { format: '%Y-%U', date: '$createdAt' } };
+                dateFormat = '%Y-%U';
+                break;
+            case 'monthly':
+                groupBy = { $dateToString: { format: '%Y-%m', date: '$createdAt' } };
+                dateFormat = '%Y-%m';
+                break;
+            case 'yearly':
+                groupBy = { $dateToString: { format: '%Y', date: '$createdAt' } };
+                dateFormat = '%Y';
+                break;
         }
-        user.isBanned = !user.isBanned;
-        await user.save();
-        res.json({ message: `User ${user.isBanned ? 'banned' : 'unbanned'} successfully`, isBanned: user.isBanned });
-    } else {
-        res.status(404);
-        throw new Error('User not found');
+
+        const revenueData = await Appointment.aggregate([
+            {
+                $match: {
+                    status: 'Completed',
+                    paymentStatus: 'Paid'
+                }
+            },
+            {
+                $group: {
+                    _id: { $dateToString: { format: dateFormat, date: '$createdAt' } },
+                    revenue: { $sum: '$fee' },
+                    appointments: { $sum: 1 }
+                }
+            },
+            {
+                $sort: { '_id': 1 }
+            }
+        ]);
+
+        // Get payment method breakdown
+        const paymentMethods = await Appointment.aggregate([
+            {
+                $match: {
+                    status: 'Completed',
+                    paymentStatus: 'Paid'
+                }
+            },
+            {
+                $group: {
+                    _id: '$paymentMethod',
+                    count: { $sum: 1 },
+                    revenue: { $sum: '$fee' }
+                }
+            }
+        ]);
+
+        res.json({
+            revenue: revenueData,
+            paymentMethods,
+            period
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 };
 
-const Order = require('../models/Order');
-
-// ... (existing functions)
-
-// @desc    Get all orders
-// @route   GET /api/admin/orders
+// @desc    Get system settings
+// @route   GET /api/admin/settings
 // @access  Private/Admin
-const getAllOrders = async (req, res) => {
-    const orders = await Order.find({}).populate('user', 'name email').sort({ createdAt: -1 });
-    res.json(orders);
+const getSystemSettings = async (req, res) => {
+    try {
+        // This would typically come from a settings collection
+        const settings = {
+            system: {
+                maintenanceMode: false,
+                registrationEnabled: true,
+                emailNotifications: true
+            },
+            payments: {
+                khaltiEnabled: true,
+                esewaEnabled: true,
+                stripeEnabled: true,
+                refundPolicy: '24 hours before appointment'
+            },
+            appointments: {
+                maxAdvanceBooking: 30, // days
+                cancellationHours: 24,
+                rescheduleHours: 24
+            }
+        };
+
+        res.json(settings);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };
 
-// @desc    Update order status
-// @route   PUT /api/admin/orders/:id/status
+// @desc    Update system settings
+// @route   PUT /api/admin/settings
 // @access  Private/Admin
-const updateOrderStatus = async (req, res) => {
-    const { status } = req.body;
-    const order = await Order.findById(req.params.id);
+const updateSystemSettings = async (req, res) => {
+    try {
+        const updates = req.body;
 
-    if (order) {
-        order.status = status;
-        await order.save();
+        res.json({
+            success: true,
+            message: 'Settings updated successfully',
+            settings: updates
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
-        // Emit notification
-        const io = req.app.get('socketio');
-        if (io) {
-            io.to(order.user.toString()).emit('receiveMessage', {
-                senderId: 'system',
-                text: `Your order #${order._id.toString().slice(-6).toUpperCase()} is now ${status}!`,
-                type: 'text',
-                timestamp: new Date().toLocaleTimeString()
-            });
+// @desc    Delete single appointment
+// @route   DELETE /api/admin/appointments/:id
+// @access  Private/Admin
+const deleteAppointment = async (req, res) => {
+    try {
+        const appointmentId = req.params.id;
+        const appointment = await Appointment.findById(appointmentId);
+        if (!appointment) {
+            return res.status(404).json({ message: 'Appointment not found' });
         }
+        await Appointment.findByIdAndDelete(appointmentId);
+        
+        // Also delete associated reviews
+        await Review.deleteMany({ appointment: appointmentId });
+        
+        // Notify admin of deletion
+        await createNotification(
+            req.user._id,
+            'admin',
+            'Appointment Deleted',
+            `You permanently deleted appointment ID: ${appointmentId}.`
+        );
 
-        res.json({ message: 'Order status updated', order });
-    } else {
-        res.status(404);
-        throw new Error('Order not found');
+        res.json({
+            success: true,
+            message: 'Appointment deleted successfully'
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Delete all appointments
+// @route   DELETE /api/admin/appointments
+// @access  Private/Admin
+const deleteAllAppointments = async (req, res) => {
+    try {
+        // Warning: This physically drops all appointments and matching reviews
+        await Appointment.deleteMany({});
+        await Review.deleteMany({});
+        
+        // Notify admin of mass deletion
+        await createNotification(
+            req.user._id,
+            'admin',
+            'All Appointments Deleted',
+            `You issued a bulk command and permanently deleted ALL system appointments.`
+        );
+
+        res.json({
+            success: true,
+            message: 'All appointments have been successfully deleted'
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 };
 
 module.exports = {
-    getPendingDoctors,
-    verifyDoctor,
-    getApprovedDoctors,
+    getAdminDashboard,
     getAllUsers,
+    getAllDoctors,
+    updateDoctorStatus,
+    getAllAppointments,
+    toggleUserBan,
     deleteUser,
-    toggleBanUser,
-    getAllOrders,
-    updateOrderStatus
+    getRevenueAnalytics,
+    getSystemSettings,
+    updateSystemSettings,
+    deleteAppointment,
+    deleteAllAppointments
 };

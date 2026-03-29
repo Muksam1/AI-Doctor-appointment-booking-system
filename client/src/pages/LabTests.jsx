@@ -60,15 +60,14 @@ const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm, cart, setCart, 
 
         if (paymentMethod === 'cod') {
             try {
-                const response = await axios.post('/api/payments/verify', orderData);
-                const { data } = response;
+                const { data } = await axios.post('/api/orders', orderData);
                 setIsProcessing(false);
                 onClose();
                 setCart({});
                 navigate('/payment-success', { state: { orderData: data } });
             } catch (err) {
-                console.error("COD order failed:", err);
-                const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message;
+                console.error("Order placement failed:", err);
+                const errorMessage = err.response?.data?.message || err.message;
                 alert(`Failed to place order: ${errorMessage}`);
                 setIsProcessing(false);
             }
@@ -78,52 +77,42 @@ const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm, cart, setCart, 
         if (paymentMethod === 'wallet' || paymentMethod === 'card') {
             const gatewayToUse = paymentMethod === 'card' ? 'esewa' : selectedWallet;
 
-            if (gatewayToUse === 'esewa') {
-                try {
-                    // Initiate eSewa Payment
+            try {
+                // Important: Create order FIRST for wallet payments too
+                const { data: orderResponse } = await axios.post('/api/orders', orderData);
+                const orderId = orderResponse._id;
+
+                if (gatewayToUse === 'esewa') {
+                    // Initiate eSewa with the newly created orderId
                     const { data } = await axios.post('/api/payments/esewa/initiate', {
-                        totalAmount: totalAmount
+                        orderId: orderId,
+                        amount: totalAmount
                     });
 
-                    // Create and submit form programmatically
                     const form = document.createElement("form");
-                    form.setAttribute("method", "POST");
-                    form.setAttribute("action", data.esewa_url);
-
-                    // Skip the URL itself from being an input
-                    Object.keys(data).forEach(key => {
-                        if (key !== 'esewa_url') {
-                            const input = document.createElement("input");
-                            input.setAttribute("type", "hidden");
-                            input.setAttribute("name", key);
-                            input.setAttribute("value", data[key]);
-                            form.appendChild(input);
-                        }
+                    form.method = "POST";
+                    form.action = data.payment_url;
+                    
+                    Object.keys(data.formData).forEach(key => {
+                        const input = document.createElement("input");
+                        input.type = "hidden";
+                        input.name = key;
+                        input.value = data.formData[key];
+                        form.appendChild(input);
                     });
-
                     document.body.appendChild(form);
                     form.submit();
-                } catch (err) {
-                    console.error("eSewa initiation failed:", err);
-                    alert("Failed to connect to eSewa. Please try again.");
-                    setIsProcessing(false);
-                }
-            } else if (gatewayToUse === 'khalti') {
-                try {
+                } else if (gatewayToUse === 'khalti') {
                     const { data } = await axios.post('/api/payments/khalti/initiate', {
-                        totalAmount: totalAmount
+                        orderId: orderId,
+                        amount: totalAmount
                     });
-
-                    if (data.payment_url) {
-                        window.location.href = data.payment_url;
-                    } else {
-                        throw new Error("No payment URL received");
-                    }
-                } catch (err) {
-                    console.error("Khalti initiation failed:", err);
-                    alert("Failed to connect to Khalti. Please try again.");
-                    setIsProcessing(false);
+                    if (data.payment_url) window.location.href = data.payment_url;
                 }
+            } catch (err) {
+                console.error("Wallet checkout failed:", err);
+                alert("Failed to initiate secure payment. Please try again.");
+                setIsProcessing(false);
             }
             return;
         }
@@ -132,7 +121,7 @@ const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm, cart, setCart, 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xl flex items-center justify-center p-0 md:p-6 animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-100 bg-black/80 backdrop-blur-xl flex items-center justify-center p-0 md:p-6 animate-in fade-in duration-300">
             <div className="bg-white w-full h-full md:h-auto md:max-w-4xl md:rounded-[4rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500 flex flex-col">
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                     <h3 className="text-xl font-black text-[#111827]">Secure Checkout</h3>
@@ -143,7 +132,7 @@ const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm, cart, setCart, 
                     )}
                 </div>
 
-                <div className="p-8 md:p-12 space-y-8 flex-grow overflow-y-auto">
+                <div className="p-8 md:p-12 space-y-8 grow overflow-y-auto">
                     <div className="text-center space-y-2">
                         <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">Total Payble</p>
                         <p className="text-4xl font-black text-healsync-indigo">Rs. {totalAmount}</p>
@@ -296,7 +285,7 @@ const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm, cart, setCart, 
                                 </button>
                                 <button
                                     onClick={handlePay}
-                                    className="flex-[2] py-4 bg-healsync-indigo hover:bg-healsync-violet text-white rounded-xl font-black text-lg shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+                                    className="flex-2 py-4 bg-healsync-indigo hover:bg-healsync-violet text-white rounded-xl font-black text-lg shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
                                 >
                                     {paymentMethod === 'cod' ? 'Place Order' : 'Pay Now'}
                                 </button>
@@ -410,7 +399,7 @@ const LabTests = () => {
                         <input
                             type="text"
                             placeholder="Search medicines, health products..."
-                            className="input-field w-full pl-14 pr-6 py-5 rounded-[2rem] shadow-sm hover:shadow-md transition-all"
+                            className="input-field w-full pl-14 pr-6 py-5 rounded-4xl shadow-sm hover:shadow-md transition-all"
                         />
                     </div>
                 </div>
@@ -421,7 +410,7 @@ const LabTests = () => {
                             <FaShoppingCart />
                         </div>
                         {totalCartItems > 0 && (
-                            <span className="absolute -top-3 -right-3 w-8 h-8 bg-red-500 text-white text-xs font-black flex items-center justify-center rounded-full border-4 border-[#F9FAFB] shadow-lg animate-bounce">
+                            <span className="absolute -top-3 -right-3 w-8 h-8 bg-red-500 text-white text-xs font-black flex items-center justify-center rounded-full border-4 border-healsync-bg shadow-lg animate-bounce">
                                 {totalCartItems}
                             </span>
                         )}
@@ -451,7 +440,7 @@ const LabTests = () => {
                         </div>
                     </div>
 
-                    <div className="glass-panel p-8 bg-gradient-to-br from-healsync-indigo to-healsync-violet text-white">
+                    <div className="glass-panel p-8 bg-linear-to-br from-healsync-indigo to-healsync-violet text-white">
                         <h4 className="text-xl font-black mb-2 italic">Flash Sale!</h4>
                         <p className="text-sm opacity-80 mb-6">Up to 40% off on all wellness supplements this weekend.</p>
                         <button className="w-full py-3 bg-white text-healsync-indigo rounded-xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-transform">
@@ -461,14 +450,14 @@ const LabTests = () => {
                 </aside>
 
                 {/* Product Grid */}
-                <div className="flex-grow">
+                <div className="grow">
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                         {filteredProducts.map(product => {
                             const pId = product._id || product.id;
                             const qty = cart[pId] || 0;
                             return (
                                 <div key={pId} className="healsync-card p-6 flex flex-col group h-full">
-                                    <div className="relative aspect-square rounded-[2rem] bg-healsync-bg overflow-hidden flex items-center justify-center border border-healsync-border mb-6">
+                                    <div className="relative aspect-square rounded-4xl bg-healsync-bg overflow-hidden flex items-center justify-center border border-healsync-border mb-6">
                                         {product.image ? (
                                             <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" />
                                         ) : (
@@ -486,7 +475,7 @@ const LabTests = () => {
                                         )}
                                     </div>
 
-                                    <div className="flex-grow space-y-2 mb-6">
+                                    <div className="grow space-y-2 mb-6">
                                         <p className="text-xs font-black text-healsync-indigo uppercase tracking-widest">{product.category}</p>
                                         <h4 className="text-xl font-black text-[#111827] leading-tight">{product.name}</h4>
                                         <p className="text-sm text-healsync-grey font-medium line-clamp-2">{product.desc}</p>

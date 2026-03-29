@@ -12,8 +12,10 @@ const Consult = () => {
     const { user } = useAuth();
     const [doctors, setDoctors] = useState([]);
     const [activeDoctor, setActiveDoctor] = useState(null);
-    const [messages, setMessages] = useState({}); // { docId: [questions/answers] }
+    const [messages, setMessages] = useState({}); // { partnerId: [message objects] }
+    const [unreadCounts, setUnreadCounts] = useState({}); // { partnerId: count }
     const [inputValue, setInputValue] = useState('');
+    const [isUploading, setIsUploading] = useState(false);
 
     // File Upload State
     const fileInputRef = useRef(null);
@@ -23,6 +25,7 @@ const Consult = () => {
     // Socket from Context
     const { socket } = useSocket();
     const doctorsRef = useRef([]);
+    const scrollRef = useRef(null);
 
     // --- Effects ---
 
@@ -35,35 +38,27 @@ const Consult = () => {
                 let contacts = [];
 
                 if (user.role === 'doctor') {
-                    // Fetch Appointments to get Patients
-                    const { data } = await axios.get('/api/appointments/doctor');
-
-                    // Extract unique patients
-                    const uniquePatients = {};
-                    data.forEach(appt => {
-                        if (appt.patient && !uniquePatients[appt.patient._id]) {
-                            uniquePatients[appt.patient._id] = {
-                                _id: appt.patient._id, // Use User ID as main ID for consistency in simplified view
-                                user: appt.patient,
-                                specialization: 'Patient',
-                                isOnline: Math.random() > 0.3,
-                                lastSeen: '10 mins ago'
-                            };
-                        }
-                    });
-                    contacts = Object.values(uniquePatients);
-
+                    // Fetch ALL patients from the platform
+                    const { data } = await axios.get('/api/patients/all');
+                    contacts = data.map(patient => ({
+                        _id: patient._id,
+                        user: patient,
+                        specialization: 'Patient',
+                        isOnline: Math.random() > 0.3,
+                        lastSeen: '10 mins ago'
+                    }));
                 } else {
-                    // Fetch Doctors (for Patients)
+                    // Fetch ALL approved doctors (for Patients & Admins)
                     const { data } = await axios.get('/api/doctors');
-                    contacts = data.map(doc => ({
+                    const doctorList = Array.isArray(data) ? data : (data.doctors || []);
+                    contacts = doctorList.map(doc => ({
                         ...doc,
                         isOnline: Math.random() > 0.3,
                         lastSeen: '10 mins ago'
                     }));
                 }
 
-                setDoctors(contacts); // reusing 'doctors' state for 'contacts'
+                setDoctors(contacts);
                 doctorsRef.current = contacts;
 
                 if (contacts.length > 0) setActiveDoctor(contacts[0]);
@@ -76,49 +71,161 @@ const Consult = () => {
         fetchContacts();
     }, [user]);
 
-    // 2. Socket Message Handler
+    // 2. Fetch Unread Counts
+    useEffect(() => {
+        if (!user) return;
+        const fetchUnread = async () => {
+            try {
+                const { data } = await axios.get('/api/messages/unread-counts');
+                const counts = {};
+                data.forEach(item => {
+                    counts[item._id] = item.count;
+                });
+                setUnreadCounts(counts);
+            } catch (err) {
+                console.error("Failed to load unread counts", err);
+            }
+        };
+        fetchUnread();
+    }, [user]);
+
+    // 3. Fetch History when Active Contact changes
+    useEffect(() => {
+        if (!user || !activeDoctor) return;
+        const partnerId = activeDoctor.user?._id || activeDoctor._id;
+
+        const fetchHistory = async () => {
+            try {
+                const { data } = await axios.get(`/api/messages/history/${partnerId}`);
+                const formattedMessages = data.map(m => ({
+                    id: m._id,
+                    sender: m.sender === user._id ? 'me' : 'them',
+                    text: m.text,
+                    type: m.type,
+                    mediaUrl: m.mediaUrl,
+                    timestamp: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    isRead: m.isRead
+                }));
+
+                setMessages(prev => ({
+                    ...prev,
+                    [partnerId]: formattedMessages
+                }));
+
+                // Mark as read
+                if (unreadCounts[partnerId] > 0) {
+                    await axios.put(`/api/messages/mark-read/${partnerId}`);
+                    setUnreadCounts(prev => ({ ...prev, [partnerId]: 0 }));
+                    if (socket) {
+                        socket.emit('markRead', { senderId: partnerId, receiverId: user._id });
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load history", err);
+            }
+        };
+
+        fetchHistory();
+    }, [activeDoctor, user]);
+
+    // 4. Scroll to bottom
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [messages, activeDoctor]);
+
+    // 5. Socket Message Handler
     useEffect(() => {
         console.log("Socket effect triggered. Socket connected:", socket?.connected);
         if (!socket || !user) return;
 
         const handleReceive = (data) => {
             console.log("Message received via socket:", data);
-            // Identifier for the chat room (other person's ID)
-            const chatPartnerId = data.senderId;
+            const chatPartnerId = data.sender; // sender ID from server payload
 
             const newMessage = {
-                id: Date.now(),
+                id: data._id || Date.now(),
                 sender: 'them',
                 text: data.text,
                 type: data.type || 'text',
                 mediaUrl: data.mediaUrl,
-                timestamp: data.timestamp
+                timestamp: new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                isRead: false
             };
 
             setMessages(prev => ({
                 ...prev,
                 [chatPartnerId]: [...(prev[chatPartnerId] || []), newMessage]
             }));
+
+            // If this is the active chat, mark as read immediately
+            const activePartnerId = activeDoctor?.user?._id || activeDoctor?._id;
+            if (chatPartnerId === activePartnerId) {
+                axios.put(`/api/messages/mark-read/${chatPartnerId}`);
+                socket.emit('markRead', { messageId: data._id, senderId: chatPartnerId, receiverId: user._id });
+            } else {
+                // Update unread count for sidebar
+                setUnreadCounts(prev => ({
+                    ...prev,
+                    [chatPartnerId]: (prev[chatPartnerId] || 0) + 1
+                }));
+            }
+        };
+
+        const handleReadUpdate = (data) => {
+            // When the other person reads our messages
+            const partnerId = data.receiverId;
+            setMessages(prev => {
+                if (!prev[partnerId]) return prev;
+                return {
+                    ...prev,
+                    [partnerId]: prev[partnerId].map(msg =>
+                        msg.sender === 'me' ? { ...msg, isRead: true } : msg
+                    )
+                };
+            });
         };
 
         socket.on('receiveMessage', handleReceive);
-        return () => socket.off('receiveMessage', handleReceive);
-    }, [socket, user]);
+        socket.on('messageRead', handleReadUpdate);
+        return () => {
+            socket.off('receiveMessage', handleReceive);
+            socket.off('messageRead', handleReadUpdate);
+        };
+    }, [socket, user, activeDoctor]);
 
     // --- Handlers ---
-    const handleSendMessage = (e) => {
+    const handleSendMessage = async (e) => {
         e.preventDefault();
-        if ((!inputValue.trim() && !selectedFile) || !activeDoctor || !user) return;
+        if ((!inputValue.trim() && !selectedFile) || !activeDoctor || !user || isUploading) return;
 
-        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setIsUploading(true);
+        let uploadedUrl = null;
+
+        if (selectedFile) {
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            try {
+                const { data } = await axios.post('/api/messages/upload', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                uploadedUrl = data.url;
+            } catch (err) {
+                console.error('File upload failed', err);
+                setIsUploading(false);
+                return; // Stop message send if upload fails
+            }
+        }
 
         const newMessage = {
             id: Date.now(),
             sender: 'me',
             text: inputValue,
             type: selectedFile ? (selectedFile.type.startsWith('image') ? 'image' : 'video') : 'text',
-            mediaUrl: previewUrl,
-            timestamp: timestamp
+            mediaUrl: uploadedUrl,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            isRead: false
         };
 
         const chatPartnerId = activeDoctor.user?._id || activeDoctor._id;
@@ -138,8 +245,8 @@ const Consult = () => {
                 receiverId: chatPartnerId, // Send to the partner's User ID
                 text: inputValue,
                 type: newMessage.type,
-                mediaUrl: previewUrl,
-                timestamp: timestamp
+                mediaUrl: uploadedUrl,
+                timestamp: new Date().toISOString()
             });
         } else {
             console.warn("Socket not available to send message!");
@@ -149,6 +256,7 @@ const Consult = () => {
         setInputValue('');
         setSelectedFile(null);
         setPreviewUrl(null);
+        setIsUploading(false);
     };
 
     const handleFileSelect = (e) => {
@@ -210,6 +318,11 @@ const Consult = () => {
                                     {doc.specialization}
                                 </p>
                             </div>
+                            {unreadCounts[doc.user?._id || doc._id] > 0 && (
+                                <div className="bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-full animate-bounce">
+                                    {unreadCounts[doc.user?._id || doc._id]}
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -238,7 +351,7 @@ const Consult = () => {
                         </header>
 
                         {/* Messages Area */}
-                        <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-healsync-bg/30">
+                        <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 space-y-6 bg-healsync-bg/30">
                             {getCurrentMessages().length === 0 && (
                                 <div className="flex flex-col items-center justify-center h-full text-healsync-grey opacity-60">
                                     <div className="w-20 h-20 rounded-full bg-healsync-indigo/10 flex items-center justify-center mb-4">
@@ -273,7 +386,9 @@ const Consult = () => {
                                             {msg.text}
                                         </div>
                                         <span className="text-[10px] font-bold text-healsync-grey uppercase tracking-widest px-1">
-                                            {msg.sender === 'me' && <FaCheck className="inline mr-1" />}
+                                            {msg.sender === 'me' && (
+                                                msg.isRead ? <span className="text-healsync-mint mr-1">Read</span> : <FaCheck className="inline mr-1" />
+                                            )}
                                             {msg.timestamp}
                                         </span>
                                     </div>
@@ -334,12 +449,17 @@ const Consult = () => {
 
                                 <button
                                     type="submit"
-                                    className={`p-4 rounded-2xl transition-all shadow-lg ${(!inputValue.trim() && !selectedFile)
+                                    disabled={(!inputValue.trim() && !selectedFile) || isUploading}
+                                    className={`p-4 rounded-2xl transition-all shadow-lg ${((!inputValue.trim() && !selectedFile) || isUploading)
                                         ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                                         : 'bg-healsync-indigo text-white hover:bg-[#111827] hover:scale-105 active:scale-95'
                                         }`}
                                 >
-                                    <FaPaperPlane className="text-xl" />
+                                    {isUploading ? (
+                                        <div className="w-5 h-5 border-2 border-healsync-indigo border-t-transparent rounded-full animate-spin"></div>
+                                    ) : (
+                                        <FaPaperPlane className="text-xl" />
+                                    )}
                                 </button>
                             </form>
                         </div>

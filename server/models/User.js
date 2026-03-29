@@ -4,16 +4,21 @@ const bcrypt = require('bcryptjs');
 const userSchema = mongoose.Schema({
     name: {
         type: String,
-        required: true
+        required: true,
+        trim: true
     },
     email: {
         type: String,
         required: true,
-        unique: true
+        unique: true,
+        lowercase: true,
+        trim: true,
+        match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ // Email validation
     },
     password: {
         type: String,
-        required: true
+        required: true,
+        minlength: 8
     },
     role: {
         type: String,
@@ -25,7 +30,9 @@ const userSchema = mongoose.Schema({
         default: 'https://cdn-icons-png.flaticon.com/512/149/149071.png'
     },
     contact: {
-        type: String
+        type: String,
+        trim: true,
+        match: /^\+?[0-9\s-]{10,}$/ // More flexible phone validation (allows +, spaces, dashes)
     },
     isVerified: {
         type: Boolean,
@@ -40,6 +47,9 @@ const userSchema = mongoose.Schema({
     isBanned: {
         type: Boolean,
         default: false
+    },
+    googleId: {
+        type: String
     }
 }, {
     timestamps: true
@@ -56,6 +66,10 @@ userSchema.pre('save', async function () {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
 });
+
+// Add indexes
+userSchema.index({ email: 1 });
+userSchema.index({ otp: 1 }, { expireAfterSeconds: 300 }); // 5 min TTL
 
 const User = mongoose.model('User', userSchema);
 

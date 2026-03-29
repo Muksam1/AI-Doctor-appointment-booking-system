@@ -39,6 +39,10 @@ export const SocketProvider = ({ children }) => {
                 }]);
             });
 
+            newSocket.on('notification', (notification) => {
+                setNotifications(prev => [notification, ...prev]);
+            });
+
             return () => {
                 newSocket.disconnect();
             };

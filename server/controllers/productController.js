@@ -8,7 +8,7 @@ const getProducts = async (req, res) => {
         const products = await Product.find({});
         res.json(products);
     } catch (error) {
-        res.status(500).json({ message: 'Error fetching products' });
+        res.status(500).json({ message: error.message });
     }
 };
 
@@ -16,7 +16,7 @@ const getProducts = async (req, res) => {
 // @route   POST /api/products
 // @access  Private/Admin
 const createProduct = async (req, res) => {
-    const { name, price, description, category, countInStock, icon, badge } = req.body;
+    const { name, price, description, category, countInStock, icon, badge, image } = req.body;
 
     try {
         const product = new Product({
@@ -27,13 +27,14 @@ const createProduct = async (req, res) => {
             countInStock,
             icon,
             badge,
+            image,
             user: req.user._id
         });
 
         const createdProduct = await product.save();
         res.status(201).json(createdProduct);
     } catch (error) {
-        res.status(500).json({ message: 'Error creating product' });
+        res.status(500).json({ message: error.message });
     }
 };
 
@@ -41,7 +42,7 @@ const createProduct = async (req, res) => {
 // @route   PUT /api/products/:id
 // @access  Private/Admin
 const updateProduct = async (req, res) => {
-    const { name, price, description, category, countInStock, icon, badge } = req.body;
+    const { name, price, description, category, countInStock, icon, badge, image } = req.body;
 
     try {
         const product = await Product.findById(req.params.id);
@@ -54,6 +55,7 @@ const updateProduct = async (req, res) => {
             product.countInStock = countInStock || product.countInStock;
             product.icon = icon || product.icon;
             product.badge = badge || product.badge;
+            product.image = image || product.image;
 
             const updatedProduct = await product.save();
             res.json(updatedProduct);
@@ -61,7 +63,7 @@ const updateProduct = async (req, res) => {
             res.status(404).json({ message: 'Product not found' });
         }
     } catch (error) {
-        res.status(500).json({ message: 'Error updating product' });
+        res.status(500).json({ message: error.message });
     }
 };
 
@@ -79,7 +81,7 @@ const deleteProduct = async (req, res) => {
             res.status(404).json({ message: 'Product not found' });
         }
     } catch (error) {
-        res.status(500).json({ message: 'Error deleting product' });
+        res.status(500).json({ message: error.message });
     }
 };
 

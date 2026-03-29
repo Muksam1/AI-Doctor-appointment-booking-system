@@ -8,40 +8,11 @@ import 'jspdf-autotable';
 const PaymentSuccess = () => {
     const [searchParams] = useSearchParams();
     const location = useLocation();
-    const appointmentId = searchParams.get('purchase_order_id');
     const [orderData, setOrderData] = React.useState(location.state?.orderData || null);
+    const [appointmentData, setAppointmentData] = React.useState(location.state?.appointmentData || null);
 
-    useEffect(() => {
-        const verify = async () => {
-            try {
-                if (orderData) {
-                    // Already processed (e.g. COD from LabTests)
-                    return;
-                }
-
-                if (appointmentId) {
-                    await axios.post('/api/payments/verify', {
-                        appointmentId,
-                        paymentMethod: 'Khalti'
-                    });
-                } else {
-                    const pendingOrder = JSON.parse(localStorage.getItem('pendingOrder'));
-                    if (pendingOrder) {
-                        // Sanitize for enum compatibility
-                        if (pendingOrder.paymentMethod === 'COD') pendingOrder.paymentMethod = 'Cod';
-
-                        const { data } = await axios.post('/api/payments/verify', pendingOrder);
-                        setOrderData(data);
-                        localStorage.removeItem('pendingOrder');
-                        localStorage.removeItem('cart'); // Also clear cart in localStorage if any
-                    }
-                }
-            } catch (err) {
-                console.error("Verification failed:", err);
-            }
-        };
-        verify();
-    }, [appointmentId, orderData]);
+    // Results are now passed via location.state from PaymentVerification.jsx
+    // or set directly for COD (Cash on Delivery) orders.
 
     const generateInvoice = () => {
         if (!orderData) return;
@@ -78,9 +49,9 @@ const PaymentSuccess = () => {
             <FaCheckCircle className="text-8xl text-green-500 animate-bounce" />
             <h1 className="text-4xl font-bold">Payment Successful!</h1>
             <p className="text-slate-500 text-lg">
-                {appointmentId
-                    ? "Your appointment has been confirmed."
-                    : "Your order has been placed and is being processed."}
+                {appointmentData
+                    ? "Your appointment has been successfully confirmed."
+                    : "Your order has been placed and is now being processed."}
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
                 {orderData && (
