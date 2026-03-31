@@ -92,10 +92,16 @@ io.on('connection', (socket) => {
             });
             await newMessage.save();
 
-            // 2. Emit to Receiver
+            // 2. Fetch sender name for notification
+            const SenderUser = require('./models/User');
+            const sender = await SenderUser.findById(senderId).select('name').lean();
+            const senderName = sender ? sender.name : 'Someone';
+
+            // 3. Emit to Receiver (include senderName for toast display)
             io.to(receiverId).emit('receiveMessage', {
                 _id: newMessage._id,
-                sender: senderId,
+                senderId: senderId,
+                senderName: senderName,
                 receiver: receiverId,
                 text,
                 type: type || 'text',
@@ -103,6 +109,21 @@ io.on('connection', (socket) => {
                 timestamp: newMessage.timestamp,
                 isRead: false
             });
+
+            // 4. Create persistent DB notification for receiver
+            try {
+                const { createNotification } = require('./controllers/notificationController');
+                const preview = text.length > 60 ? text.substring(0, 60) + '...' : text;
+                await createNotification(
+                    receiverId,
+                    'system',
+                    'New Message',
+                    `New message from ${senderName}: "${preview}"`,
+                    { senderId }
+                );
+            } catch (notifErr) {
+                console.error('Failed to create chat notification:', notifErr.message);
+            }
         } catch (error) {
             console.error("Error saving message:", error);
         }

@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { GoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -33,10 +34,10 @@ const Login = () => {
             const data = err.response?.data;
             if (data && data.isVerified === false) {
                 localStorage.setItem('verifyEmail', data.email || email);
-                alert(data.message || 'Please verify your email first.');
+                toast.error(data.message || 'Please verify your email first.');
                 navigate('/verify-email');
             } else {
-                alert(data?.message || 'Invalid email or password');
+                toast.error(data?.message || 'Invalid email or password.');
             }
         }
     };
@@ -48,10 +49,11 @@ const Login = () => {
             });
             const userInfo = { ...data };
             sessionStorage.setItem('userInfo', JSON.stringify(userInfo));
-            window.location.href = '/dashboard';
+            toast.success(`Login successful! Welcome back, ${data.name}.`);
+            setTimeout(() => { window.location.href = '/dashboard'; }, 800);
         } catch (err) {
             console.error('Google Auth Error:', err);
-            alert('Google authentication failed');
+            toast.error('Google authentication failed. Please try again.');
         }
     };
 
@@ -64,7 +66,7 @@ const Login = () => {
                 <div className="pt-4">
                     <GoogleLogin
                         onSuccess={handleGoogleSuccess}
-                        onError={() => alert('Google Login Failed')}
+                        onError={() => toast.error('Google Login Failed.')}
                         useOneTap
                         shape="pill"
                         text="signin"

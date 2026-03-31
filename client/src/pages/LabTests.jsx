@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FaPlus, FaMinus, FaShoppingCart, FaSearch, FaFilter, FaCapsules, FaStethoscope, FaBaby, FaHeartbeat, FaTimes, FaCreditCard, FaMoneyBillWave, FaMobileAlt, FaCcVisa, FaCcMastercard, FaCcAmex, FaCcJcb, FaInfoCircle, FaPaperPlane, FaImage, FaFileVideo, FaCheck } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm, cart, setCart, products, checkoutItem }) => {
     const navigate = useNavigate();
@@ -15,7 +16,7 @@ const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm, cart, setCart, 
 
     const handlePay = async () => {
         if (totalAmount <= 0) {
-            alert("Cart is empty or invalid. Please add items.");
+            toast.error('Cart is empty or invalid. Please add items.');
             return;
         }
         setIsProcessing(true);
@@ -37,7 +38,7 @@ const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm, cart, setCart, 
         }).filter(item => item !== null);
 
         if (orderItems.length === 0) {
-            alert("Order items are invalid");
+            toast.error('Order items are invalid. Please try again.');
             setIsProcessing(false);
             return;
         }
@@ -68,7 +69,7 @@ const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm, cart, setCart, 
             } catch (err) {
                 console.error("Order placement failed:", err);
                 const errorMessage = err.response?.data?.message || err.message;
-                alert(`Failed to place order: ${errorMessage}`);
+                toast.error(`Failed to place order: ${errorMessage}`);
                 setIsProcessing(false);
             }
             return;
@@ -111,7 +112,7 @@ const PaymentModal = ({ isOpen, onClose, totalAmount, onConfirm, cart, setCart, 
                 }
             } catch (err) {
                 console.error("Wallet checkout failed:", err);
-                alert("Failed to initiate secure payment. Please try again.");
+                toast.error('Failed to initiate secure payment. Please try again.');
                 setIsProcessing(false);
             }
             return;

@@ -216,11 +216,16 @@ const updateDoctorStatus = async (req, res) => {
         }
 
         // Database Notification for Doctor
+        const statusTitle = status === 'approved' ? 'Profile Verified!' : 'Application Update';
+        const statusMessage = status === 'approved' 
+            ? 'Your profile has been verified by the Admin. You are now visible to patients.' 
+            : `Your application status has been updated to: ${status}. ${reason ? `Reason: ${reason}` : ''}`;
+
         await createNotification(
             doctor.user._id,
             'system',
-            subject,
-            message
+            statusTitle,
+            statusMessage
         );
 
         // Self-notification for admin (activity log)

@@ -28,7 +28,7 @@ const PaymentVerification = () => {
                     const { data } = await axios.post('/api/payments/khalti/verify', { pidx, appointmentId: entityId, type: entityType });
                     if (data.success) {
                         setStatus('success');
-                        setMessage('Payment verified via Khalti! Your booking is confirmed.');
+                        setMessage('Payment verified via Khalti! Your appointment is now awaiting the doctor\'s confirmation.');
                     }
                 } else if (gateway === 'esewa' && oid && amt && refId) {
                     const { data } = await axios.get('/api/payments/esewa/verify', {
@@ -36,7 +36,7 @@ const PaymentVerification = () => {
                     });
                     if (data.success) {
                         setStatus('success');
-                        setMessage('Payment verified via eSewa! Your booking is confirmed.');
+                        setMessage('Payment verified via eSewa! Your appointment is now awaiting the doctor\'s confirmation.');
                     }
                 } else {
                     setStatus('error');
@@ -70,17 +70,16 @@ const PaymentVerification = () => {
                         <div className="w-24 h-24 bg-healsync-mint/10 rounded-full flex items-center justify-center mx-auto">
                             <FaCheckCircle className="text-5xl text-healsync-mint" />
                         </div>
-                        <h2 className="text-3xl font-black text-[#111827]">Payment Verified!</h2>
+                        <h2 className="text-3xl font-black text-[#111827]">Payment Received!</h2>
                         <p className="text-healsync-grey font-medium">{message}</p>
+                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-700 font-medium text-left">
+                            ⏳ <strong>Next step:</strong> The doctor will review and accept or reject your appointment. You will be notified immediately.
+                        </div>
                         <button
-                            onClick={() => navigate('/payment-success', { 
-                                state: { 
-                                    [appointmentId ? 'appointmentData' : 'orderData']: { _id: appointmentId || orderId } 
-                                } 
-                            })}
+                            onClick={() => navigate('/dashboard?tab=appointments')}
                             className="w-full py-4 bg-healsync-indigo text-white rounded-2xl font-black shadow-lg hover:shadow-xl hover:bg-[#111827] transition-all"
                         >
-                            View Receipt & Receipt
+                            View My Appointments
                         </button>
                     </div>
                 )}

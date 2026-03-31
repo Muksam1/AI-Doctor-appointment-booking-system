@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import ScrollToTop from './components/ScrollToTop';
 import Home from './pages/Home';
@@ -36,13 +37,41 @@ function App() {
               <Navbar />
               <main className="flex-grow pt-32 pb-12">
                 <Routes>
-                  <Route path="/" element={<Navigate to="/login" replace />} />
+                  <Route path="/" element={<Home />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
-                  <Route path="/doctors" element={<Doctors />} />
-                  <Route path="/doctors/:id" element={<DoctorDetail />} />
-                  <Route path="/consult" element={<Consult />} />
-                  <Route path="/lab-tests" element={<LabTests />} />
+                  <Route
+                    path="/doctors"
+                    element={
+                      <ProtectedRoute>
+                        <Doctors />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/doctors/:id"
+                    element={
+                      <ProtectedRoute>
+                        <DoctorDetail />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/consult"
+                    element={
+                      <ProtectedRoute>
+                        <Consult />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/lab-tests"
+                    element={
+                      <ProtectedRoute>
+                        <LabTests />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route path="/payment-success" element={<PaymentSuccess />} />
                   <Route path="/payment-verification" element={<PaymentVerification />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -67,12 +96,13 @@ function App() {
                   />
                 </Routes>
               </main>
-              <Chatbot />
-            </div>
-          </Router>
-        </SocketProvider>
-      </AuthProvider>
-    </ThemeProvider>
+            <Chatbot />
+            <Toaster position="top-right" reverseOrder={false} />
+          </div>
+        </Router>
+      </SocketProvider>
+    </AuthProvider>
+  </ThemeProvider>
   );
 }
 

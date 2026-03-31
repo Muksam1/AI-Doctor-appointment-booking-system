@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { GoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const Register = () => {
     const [formData, setFormData] = useState({
@@ -24,31 +25,30 @@ const Register = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            // Force role to 'patient' during registration
             await axios.post('/api/auth/register', { ...formData, role: 'patient' });
             localStorage.setItem('verifyEmail', formData.email);
-            alert('Registration request successful! A 6-digit verification code has been sent to your email.');
+            toast.success('An OTP has been sent to your registered email. Please verify to continue.');
             navigate('/verify-email');
         } catch (err) {
             console.error('Registration Error:', err.response || err);
             const message = err.response?.data?.message || err.message || 'Registration failed';
-            alert(message);
+            toast.error(message);
         }
     };
 
     const handleGoogleSuccess = async (credentialResponse) => {
         try {
-            // Force role to 'patient' for Google login
             const { data } = await axios.post('/api/auth/google', { 
                 token: credentialResponse.credential,
                 role: 'patient'
             });
             const userInfo = { ...data };
             sessionStorage.setItem('userInfo', JSON.stringify(userInfo));
-            window.location.href = '/dashboard';
+            toast.success(`Welcome to HealSync, ${data.name}!`);
+            setTimeout(() => { window.location.href = '/dashboard'; }, 800);
         } catch (err) {
             console.error('Google Auth Error:', err);
-            alert('Google authentication failed');
+            toast.error('Google authentication failed. Please try again.');
         }
     };
 
@@ -61,7 +61,7 @@ const Register = () => {
                 <div className="pt-4">
                     <GoogleLogin
                         onSuccess={handleGoogleSuccess}
-                        onError={() => alert('Google Sign-In Failed')}
+                        onError={() => toast.error('Google Sign-In Failed.')}
                         useOneTap
                         shape="pill"
                         text="continue_with"

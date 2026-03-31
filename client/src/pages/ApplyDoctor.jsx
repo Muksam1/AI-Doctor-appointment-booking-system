@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast';
 
 const ApplyDoctor = () => {
     const { user } = useAuth();
@@ -87,11 +88,11 @@ const ApplyDoctor = () => {
                 }
             };
             await axios.post('/api/doctors/join', formData, config);
-            alert('Application submitted successfully! Please wait for admin approval.');
+            toast.success('Application submitted successfully! Please wait for admin approval.');
             navigate('/dashboard');
         } catch (err) {
             console.error('Error submitting application:', err);
-            alert(err.response?.data?.message || 'Failed to submit application');
+            toast.error(err.response?.data?.message || 'Failed to submit application.');
         } finally {
             setLoading(false);
         }

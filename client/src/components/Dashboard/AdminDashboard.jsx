@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import { useSocket } from '../../context/SocketContext';
+import toast from 'react-hot-toast';
 import {
     FaUsers, FaUserMd, FaCalendarCheck, FaChartLine,
     FaPlus, FaTrash, FaEdit, FaBoxOpen,
@@ -81,7 +82,7 @@ const AdminDashboard = () => {
             await axios.put(`/api/admin/doctors/${id}/verify`, { status });
             await fetchData(); // Refresh all lists
         } catch (err) {
-            alert('Failed to update doctor status');
+            toast.error('Failed to update doctor status');
         } finally {
             setActionLoading(null);
         }
@@ -94,7 +95,7 @@ const AdminDashboard = () => {
                 await axios.delete(`/api/admin/user/${id}`);
                 await fetchData();
             } catch (err) {
-                alert(err.response?.data?.message || 'Error deleting user');
+                toast.error(err.response?.data?.message || 'Error deleting user');
             } finally {
                 setActionLoading(null);
             }
@@ -105,10 +106,10 @@ const AdminDashboard = () => {
         setActionLoading(id + 'ban');
         try {
             const { data } = await axios.patch(`/api/admin/user/${id}/ban`);
-            alert(data.message);
+            toast.success(data.message);
             await fetchData();
         } catch (err) {
-            alert(err.response?.data?.message || 'Error banning/unbanning user');
+            toast.error(err.response?.data?.message || 'Error banning/unbanning user');
         } finally {
             setActionLoading(null);
         }
@@ -120,16 +121,16 @@ const AdminDashboard = () => {
             if (editingProduct) {
                 const { data } = await axios.put(`/api/products/${editingProduct}`, newProduct);
                 setProducts(products.map(p => p._id === editingProduct ? data : p));
-                alert("Product updated successfully!");
+                toast.success('Product updated successfully!');
                 setEditingProduct(null);
             } else {
                 const { data } = await axios.post('/api/products', newProduct);
                 setProducts([...products, data]);
-                alert("Product added successfully!");
+                toast.success('Product added successfully!');
             }
             setNewProduct({ name: '', price: '', category: 'Medicines', description: '', icon: 'FaCapsules', countInStock: 10 });
         } catch (err) {
-            alert(editingProduct ? "Error updating product" : "Error adding product");
+            toast.error(editingProduct ? 'Error updating product' : 'Error adding product');
         }
     };
 
@@ -153,7 +154,7 @@ const AdminDashboard = () => {
                 await axios.delete(`/api/products/${id}`);
                 setProducts(products.filter(p => p._id !== id));
             } catch (err) {
-                alert("Error deleting product");
+                toast.error('Error deleting product');
             }
         }
     };
@@ -164,7 +165,7 @@ const AdminDashboard = () => {
                 setAppointments(appointments.filter(appt => appt._id !== id));
                 fetchData(); // Refresh top level stats
             } catch (err) {
-                alert("Error deleting appointment");
+                toast.error('Error deleting appointment');
                 console.error(err);
             }
         }
@@ -177,7 +178,7 @@ const AdminDashboard = () => {
                 setAppointments([]);
                 fetchData(); // Refresh top level stats
             } catch (err) {
-                alert("Error deleting all appointments");
+                toast.error('Error deleting all appointments');
                 console.error(err);
             }
         }
@@ -612,8 +613,12 @@ const AdminDashboard = () => {
                                         <td className="px-8 py-5 text-right font-black text-sm text-[#111827]">
                                             <div className="flex flex-col items-end">
                                                 <span>Rs. {appt.fee || 0}</span>
-                                                <span className={`text-[9px] font-black uppercase tracking-widest ${appt.paymentStatus === 'Paid' ? 'text-teal-600' : 'text-amber-600'}`}>
-                                                    {appt.paymentStatus}
+                                                <span className={`text-[9px] font-black uppercase tracking-widest ${
+                                                    appt.paymentStatus === 'Paid' ? 'text-teal-600' : 
+                                                    appt.paymentStatus === 'Refunded' ? 'text-green-600' : 
+                                                    'text-amber-600'
+                                                }`}>
+                                                    {appt.paymentStatus === 'Refunded' ? '💳 Refunded' : appt.paymentStatus}
                                                 </span>
                                             </div>
                                         </td>

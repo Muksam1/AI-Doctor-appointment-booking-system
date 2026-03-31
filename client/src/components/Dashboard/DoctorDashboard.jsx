@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import {
     FaUserMd, FaCheck, FaTimes, FaCalendarCheck, FaClock,
     FaStethoscope, FaUserCog, FaImage, FaSave, FaRocket,
@@ -153,8 +154,11 @@ const DoctorDashboard = () => {
         try {
             await axios.put(`/api/appointments/${id}/status`, { status });
             fetchData();
+            if (status === 'Confirmed') toast.success('Appointment accepted! The patient has been notified.');
+            else if (status === 'Cancelled') toast.error('Appointment rejected. Refund will be processed if payment was received.');
+            else if (status === 'Completed') toast.success('Appointment marked as completed.');
         } catch (err) {
-            alert('Failed to update status');
+            toast.error('Failed to update appointment status.');
         }
     };
 
@@ -196,7 +200,7 @@ const DoctorDashboard = () => {
         e.preventDefault();
         try {
             const { data } = await axios.put('/api/doctors/profile', doctorInfo);
-            alert('Profile updated successfully!');
+            toast.success('Profile updated successfully!');
             const storedUser = JSON.parse(sessionStorage.getItem('userInfo'));
             const updatedUser = {
                 ...storedUser,
@@ -207,16 +211,16 @@ const DoctorDashboard = () => {
             sessionStorage.setItem('userInfo', JSON.stringify(updatedUser));
             setUser(updatedUser);
         } catch (err) {
-            alert('Failed to update profile');
+            toast.error('Failed to update profile');
         }
     };
 
     const handleAvailabilityUpdate = async () => {
         try {
             await axios.put('/api/doctors/availability', { availability, customAvailability });
-            alert('Availability updated successfully!');
+            toast.success('Availability updated successfully!');
         } catch (err) {
-            alert('Failed to update availability');
+            toast.error('Failed to update availability');
         }
     };
 
@@ -664,14 +668,31 @@ const DoctorDashboard = () => {
                                                         <p className="text-sm font-bold text-healsync-grey uppercase mt-1">{appt.timeSlot}</p>
                                                     </td>
                                                     <td className="px-8 py-6">
-                                                        <span className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest border ${appt.status === 'Confirmed' ? 'bg-healsync-mint/10 text-teal-600 border-healsync-mint/20' :
-                                                            appt.status === 'Cancelled' ? 'bg-red-50 text-red-500 border-red-100' : 'bg-healsync-bg text-healsync-grey border-healsync-border'
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <span className={`inline-block px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest border w-fit ${
+                                                                appt.status === 'Confirmed' ? 'bg-healsync-mint/10 text-teal-600 border-healsync-mint/20' :
+                                                                appt.status === 'Cancelled' ? 'bg-red-50 text-red-500 border-red-100' :
+                                                                appt.status === 'Completed' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                                                'bg-healsync-bg text-healsync-grey border-healsync-border'
                                                             }`}>
-                                                            {appt.status}
-                                                        </span>
+                                                                {appt.status}
+                                                            </span>
+                                                            {/* Urgent badge for paid-but-pending appointments */}
+                                                            {appt.status === 'Pending' && appt.paymentStatus === 'Paid' && (
+                                                                <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[10px] font-black uppercase tracking-widest w-fit animate-pulse">
+                                                                    💳 Paid — Action Required
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
-                                                    <td className="px-8 py-6 font-black text-sm text-healsync-indigo">
-                                                        {appt.paymentStatus}
+                                                    <td className="px-8 py-6">
+                                                        <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                                                            appt.paymentStatus === 'Paid' ? 'bg-healsync-indigo/10 text-healsync-indigo border-healsync-indigo/20' :
+                                                            appt.paymentStatus === 'Refunded' ? 'bg-green-50 text-green-600 border-green-200' :
+                                                            'bg-gray-100 text-gray-500 border-gray-200'
+                                                        }`}>
+                                                            {appt.paymentStatus === 'Refunded' ? '💳 Refunded' : appt.paymentStatus}
+                                                        </span>
                                                     </td>
                                                     <td className="px-10 py-8 text-right">
                                                         <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">

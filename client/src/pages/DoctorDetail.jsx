@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FaCheckCircle, FaRegStar, FaRegClock, FaCalendarAlt, FaStar } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast';
 
 const DoctorDetail = () => {
     const { id } = useParams();
@@ -67,14 +68,46 @@ const DoctorDetail = () => {
 
         setBookingLoading(true);
         try {
-            await axios.post('/api/appointments', {
+            // 1. Create the Pending Appointment
+            const { data: appointmentData } = await axios.post('/api/appointments', {
                 doctorId: id,
                 date: selectedDate,
                 timeSlot: selectedSlot
             });
-            navigate('/dashboard');
+
+            if (appointmentData.success) {
+                const appointmentId = appointmentData.appointment._id;
+                const fee = appointmentData.appointment.fee;
+
+                // 2. Initiate eSewa Payment
+                const { data: paymentRes } = await axios.post('/api/payments/esewa/initiate', {
+                    appointmentId,
+                    amount: fee
+                });
+
+                if (paymentRes.success && paymentRes.formData) {
+                    // 3. Create a dynamic form and submit to eSewa
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = paymentRes.payment_url;
+
+                    Object.entries(paymentRes.formData).forEach(([key, value]) => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = value;
+                        form.appendChild(input);
+                    });
+
+                    document.body.appendChild(form);
+                    form.submit();
+                } else {
+                    throw new Error('Failed to initiate payment gateway');
+                }
+            }
         } catch (err) {
-            alert(err.response?.data?.message || 'Booking failed. Please try again.');
+            console.error("Booking/Payment Error:", err);
+            toast.error(err.response?.data?.message || err.message || 'Booking failed. Please try again.');
         } finally {
             setBookingLoading(false);
         }

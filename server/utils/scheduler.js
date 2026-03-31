@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const Appointment = require('../models/Appointment');
+const Doctor = require('../models/Doctor');
 const User = require('../models/User');
 const { sendEmail } = require('../config/sendEmail');
 const { createNotification } = require('../controllers/notificationController');
@@ -9,8 +10,7 @@ const { createNotification } = require('../controllers/notificationController');
  * Runs every hour to check for appointments happening in the next 24 hours.
  */
 const initReminders = () => {
-    // Schedule: Every hour at the top of the hour
-    // For testing, you could use '* * * * *' to run every minute
+    // ── 1. APPOINTMENT REMINDERS — Every hour ──────────────────────────────────
     cron.schedule('0 * * * *', async () => {
         console.log('--- Running Appointment Reminder Job ---');
         
@@ -19,9 +19,6 @@ const initReminders = () => {
             const tomorrow = new Date(now);
             tomorrow.setDate(now.getDate() + 1);
             
-            // Find confirmed appointments within the next 24 hours that haven't been reminded yet
-            // We look for any appointment whose 'date' is between 'now' and 'tomorrow' 
-            // and the 'reminded' flag is false.
             const upcomingAppointments = await Appointment.find({
                 status: 'Confirmed',
                 reminded: false,
@@ -39,7 +36,7 @@ const initReminders = () => {
                 const apptDate = appointment.date.toDateString();
                 const apptTime = appointment.timeSlot;
 
-                // 1. Send Email Notification
+                // Send Email Reminder
                 await sendEmail({
                     to: patient.email,
                     subject: 'HealSync Reminder: Upcoming Doctor Appointment Tomorrow',
@@ -55,16 +52,16 @@ const initReminders = () => {
                     `
                 });
 
-                // 2. Create In-App Notification
+                // In-App Notification for Patient
                 await createNotification(
                     patient._id,
                     'reminder',
-                    'Upcoming Appointment',
-                    `Reminder: You have an appointment with Dr. ${doctorName} tomorrow at ${apptTime}.`,
+                    'Appointment Reminder',
+                    `Reminder: You have an appointment with Dr. ${doctorName} on ${apptDate} at ${apptTime}.`,
                     { appointment: appointment._id }
                 );
 
-                // 3. Mark as reminded
+                // Mark as reminded
                 appointment.reminded = true;
                 appointment.remindedAt = new Date();
                 await appointment.save();
@@ -74,6 +71,58 @@ const initReminders = () => {
 
         } catch (error) {
             console.error('Error in Appointment Reminder Job:', error);
+        }
+    });
+
+    // ── 2. DAILY SCHEDULE SUMMARY — Every morning at 7:00 AM ──────────────────
+    cron.schedule('0 7 * * *', async () => {
+        console.log('--- Running Daily Schedule Summary Job ---');
+
+        try {
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const todayEnd = new Date();
+            todayEnd.setHours(23, 59, 59, 999);
+
+            // Get all doctors who have at least one appointment today
+            const todayAppointments = await Appointment.find({
+                date: { $gte: todayStart, $lte: todayEnd },
+                status: { $in: ['Pending', 'Confirmed'] }
+            }).select('doctor').lean();
+
+            if (todayAppointments.length === 0) {
+                console.log('No schedule summary needed — no appointments today.');
+                return;
+            }
+
+            // Group by doctor
+            const appointmentsByDoctor = {};
+            for (const appt of todayAppointments) {
+                const doctorId = appt.doctor.toString();
+                appointmentsByDoctor[doctorId] = (appointmentsByDoctor[doctorId] || 0) + 1;
+            }
+
+            // Send a notification to each active doctor
+            for (const [doctorId, count] of Object.entries(appointmentsByDoctor)) {
+                const doctor = await Doctor.findById(doctorId).populate('user', '_id name').lean();
+                if (!doctor || !doctor.user) continue;
+
+                const greeting = `Good morning, Dr. ${doctor.user.name}!`;
+                const summary = `You have ${count} appointment${count > 1 ? 's' : ''} scheduled for today.`;
+
+                await createNotification(
+                    doctor.user._id,
+                    'reminder',
+                    'Daily Schedule Summary',
+                    `${greeting} ${summary}`,
+                    { doctorId }
+                );
+
+                console.log(`Sent daily summary to Dr. ${doctor.user.name} (${count} appointments).`);
+            }
+
+        } catch (error) {
+            console.error('Error in Daily Schedule Summary Job:', error);
         }
     });
 };

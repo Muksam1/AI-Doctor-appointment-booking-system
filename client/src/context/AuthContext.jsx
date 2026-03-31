@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
 
@@ -36,12 +37,14 @@ export const AuthProvider = ({ children }) => {
         setUser(data);
         sessionStorage.setItem('userInfo', JSON.stringify(data));
         axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+        toast.success(`Login successful! Welcome back, ${data.name}.`);
     };
 
     const logout = () => {
         sessionStorage.removeItem('userInfo');
         setUser(null);
         delete axios.defaults.headers.common['Authorization'];
+        toast('You have been logged out.', { icon: '👋' });
     };
 
     return (

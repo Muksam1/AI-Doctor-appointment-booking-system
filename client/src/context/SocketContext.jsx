@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import toast from 'react-hot-toast';
 
 const SocketContext = createContext();
 
@@ -20,7 +21,42 @@ export const SocketProvider = ({ children }) => {
                 newSocket.emit('join', 'admins');
             }
 
+            // ── Doctor: new booking request ─────────────────────────────────────
+            newSocket.on('newAppointment', (data) => {
+                toast.success(
+                    `📅 New appointment request from ${data.patient} for ${data.date} at ${data.time}`,
+                    { duration: 6000, id: `appt-${data.appointment}` }
+                );
+            });
+
+            // ── Patient: appointment accepted / rejected ─────────────────────────
+            newSocket.on('appointmentStatusUpdate', (data) => {
+                const isAccepted = data.status === 'Confirmed';
+                const msg = isAccepted
+                    ? `✅ Your appointment has been accepted!`
+                    : `❌ Your appointment has been rejected.`;
+                isAccepted
+                    ? toast.success(msg, { duration: 6000 })
+                    : toast.error(msg, { duration: 6000 });
+            });
+
+            // ── Chat: new message ────────────────────────────────────────────────
             newSocket.on('receiveMessage', (data) => {
+                // Only show toast if the message is from someone else (not a system echo)
+                if (data.senderId && data.senderId !== user._id) {
+                    const senderName = data.senderName || 'Someone';
+                    toast(`💬 New message from ${senderName}`, {
+                        duration: 5000,
+                        style: {
+                            background: '#4F46E5',
+                            color: '#fff',
+                            fontWeight: '600'
+                        },
+                        id: `msg-${data.senderId}`
+                    });
+                }
+
+                // Keep legacy system messages in the dropdown bell too
                 if (data.senderId === 'system') {
                     setNotifications(prev => [...prev, {
                         id: Date.now(),
@@ -30,7 +66,16 @@ export const SocketProvider = ({ children }) => {
                 }
             });
 
+            // ── Admin: new doctor registration alert ─────────────────────────────
             newSocket.on('adminNotification', (data) => {
+                toast(`🔔 ${data.text}`, {
+                    duration: 7000,
+                    style: {
+                        background: '#0F172A',
+                        color: '#fff',
+                        fontWeight: '600'
+                    }
+                });
                 setNotifications(prev => [...prev, {
                     id: Date.now(),
                     message: data.text,
@@ -39,7 +84,19 @@ export const SocketProvider = ({ children }) => {
                 }]);
             });
 
+            // ── Generic notification (DB-pushed via socket) ──────────────────────
             newSocket.on('notification', (notification) => {
+                const icons = {
+                    appointment: '📅',
+                    payment: '💳',
+                    system: '🔔',
+                    reminder: '⏰',
+                    promotion: '🎉',
+                };
+                const icon = icons[notification.type] || '🔔';
+                toast(`${icon} ${notification.title}: ${notification.message}`, {
+                    duration: 5000,
+                });
                 setNotifications(prev => [notification, ...prev]);
             });
 
@@ -58,18 +115,6 @@ export const SocketProvider = ({ children }) => {
     return (
         <SocketContext.Provider value={{ socket: socketInstance, notifications, clearNotification }}>
             {children}
-            {/* Simple Notification UI */}
-            <div className="fixed top-24 right-6 z-[300] space-y-3">
-                {notifications.map(notif => (
-                    <div key={notif.id} className="bg-white border-l-4 border-healsync-indigo p-4 rounded-xl shadow-2xl w-80 animate-in slide-in-from-right-10 duration-300">
-                        <div className="flex justify-between items-start">
-                            <p className="font-bold text-sm text-[#111827]">{notif.message}</p>
-                            <button onClick={() => clearNotification(notif.id)} className="text-gray-400 hover:text-gray-600">×</button>
-                        </div>
-                        <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest font-black">{notif.timestamp}</p>
-                    </div>
-                ))}
-            </div>
         </SocketContext.Provider>
     );
 };

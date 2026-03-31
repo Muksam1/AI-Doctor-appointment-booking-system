@@ -2,6 +2,7 @@ const Doctor = require('../models/Doctor');
 const User = require('../models/User');
 const Appointment = require('../models/Appointment');
 const Review = require('../models/Review');
+const { createNotification } = require('./notificationController');
 
 // @desc    Get all doctors with filters
 // @route   GET /api/doctors
@@ -333,6 +334,18 @@ const applyForDoctor = async (req, res) => {
             clinicAddress,
             applicationStatus: 'pending'
         });
+
+        // Notify Admins
+        const admins = await User.find({ role: 'admin' });
+        for (const admin of admins) {
+            await createNotification(
+                admin._id,
+                'system',
+                'New Doctor Registration',
+                `A new doctor, ${req.user.name}, has registered and is pending verification.`,
+                { doctor: doctor._id }
+            );
+        }
 
         res.status(201).json({
             success: true,

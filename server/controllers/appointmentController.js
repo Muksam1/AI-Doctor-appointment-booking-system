@@ -71,9 +71,18 @@ const getAvailableSlots = async (req, res) => {
                 if (isToday) {
                     // Filter out past slots for today
                     const [hours, minutes] = slot.startTime.split(':').map(Number);
-                    const slotTime = new Date(now);
-                    slotTime.setHours(hours, minutes, 0, 0);
-                    return !isBooked && slotTime > now;
+                    
+                    // Create slot time precisely using UTC parts to avoid server timezone interference
+                    // but we compare against 'now' (current point in time)
+                    const [y, m, d] = targetDateStr.split('-').map(Number);
+                    
+                    // We need to know the offset for comparison. 
+                    // Assuming the application logic follows local time of the user/doctor.
+                    // A safer way is to create a date object for the slot in the current day's context.
+                    const slotDateTime = new Date(); 
+                    slotDateTime.setHours(hours, minutes, 0, 0);
+
+                    return !isBooked && slotDateTime > now;
                 }
                 
                 return !isBooked;
@@ -225,12 +234,12 @@ const bookAppointment = async (req, res) => {
             { appointment: appointment._id }
         );
 
-        // Self-Notification for Patient (activity log)
+        // Self-Notification for Patient
         await createNotification(
             req.user._id,
-            'system',
-            'Appointment Booked',
-            `You successfully requested an appointment with Dr. ${doctor.user.name} for ${bookingDate.toDateString()} at ${timeSlot}`,
+            'appointment',
+            'Appointment Booked Successfully',
+            `Your appointment with Dr. ${doctor.user.name} has been successfully booked for ${bookingDate.toDateString()} at ${timeSlot}.`,
             { appointment: appointment._id }
         );
 
@@ -339,11 +348,40 @@ const updateAppointmentStatus = async (req, res) => {
             const doctor = populatedAppt.doctor;
 
             // Database Notification for patient
+            let patientTitle = 'Appointment Status Update';
+            let patientMessage = `Your appointment status has been updated to: ${status}`;
+
+            if (status === 'Confirmed') {
+                patientTitle = 'Appointment Accepted ✅';
+                patientMessage = `Dr. ${doctor.user.name} has accepted your appointment request for ${new Date(appointment.date).toDateString()} at ${appointment.timeSlot}.`;
+            } else if (status === 'Cancelled') {
+                patientTitle = 'Appointment Rejected';
+                patientMessage = `Dr. ${doctor.user.name} has rejected your appointment request.`;
+
+                // If patient already paid — trigger refund
+                if (appointment.paymentStatus === 'Paid') {
+                    appointment.paymentStatus = 'Refunded';
+                    await appointment.save();
+
+                    patientTitle = 'Appointment Rejected — Refund Initiated';
+                    patientMessage = `Dr. ${doctor.user.name} has rejected your appointment. Since you already paid, a refund of Rs. ${appointment.fee} will be processed to your original payment method within 3–5 business days.`;
+
+                    // Extra dedicated refund notification
+                    await createNotification(
+                        appointment.patient,
+                        'payment',
+                        'Refund Initiated 💳',
+                        `A refund of Rs. ${appointment.fee} has been initiated for your cancelled appointment with Dr. ${doctor.user.name}. It will arrive within 3–5 business days.`,
+                        { appointment: appointment._id }
+                    );
+                }
+            }
+
             await createNotification(
                 appointment.patient,
                 'appointment',
-                'Appointment Status Update',
-                `Your appointment status has been updated to: ${status}`,
+                patientTitle,
+                patientMessage,
                 { appointment: appointment._id }
             );
 
@@ -374,12 +412,17 @@ const updateAppointmentStatus = async (req, res) => {
                             <p>Thank you for choosing HealSync!</p>
                         `;
                     } else if (status === 'Cancelled') {
-                        subject = 'Appointment Cancelled - HealSync';
+                        const wasRefunded = populatedAppt.paymentStatus === 'Refunded';
+                        subject = wasRefunded
+                            ? 'Appointment Rejected — Refund Initiated | HealSync'
+                            : 'Appointment Cancelled - HealSync';
                         htmlContent = `
-                            <h2>Appointment Cancelled</h2>
+                            <h2>Appointment ${wasRefunded ? 'Rejected' : 'Cancelled'}</h2>
                             <p>Dear ${patient.name},</p>
-                            <p>Your appointment with <strong>Dr. ${doctor.user.name}</strong> on ${new Date(appointment.date).toDateString()} at ${appointment.timeSlot} has been <strong>cancelled</strong>.</p>
-                            <p>If you have any questions, please contact the doctor or our support team.</p>
+                            <p>Your appointment with <strong>Dr. ${doctor.user.name}</strong> on ${new Date(appointment.date).toDateString()} at ${appointment.timeSlot} has been <strong>${wasRefunded ? 'rejected by the doctor' : 'cancelled'}</strong>.</p>
+                            ${wasRefunded ? `<p style="background:#f0fdf4;padding:12px;border-left:4px solid #16a34a;margin:12px 0;"><strong>💳 Refund Notice:</strong> Since your payment of <strong>Rs. ${appointment.fee}</strong> was already received, a refund will be processed to your original payment method within 3–5 business days.</p>` : ''}
+                            <p>If you have any questions, please contact our support team.</p>
+                            <p>Best regards,<br/>The HealSync Team</p>
                         `;
                     }
 

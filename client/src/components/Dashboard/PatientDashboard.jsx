@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import { FaCalendarAlt, FaRobot, FaUserCircle, FaMapMarkerAlt, FaShieldAlt, FaBoxOpen, FaTruck, FaCheckCircle, FaClipboardList, FaUserEdit, FaSave, FaImage, FaVenusMars, FaTint, FaHome, FaHistory, FaPhone, FaStar, FaTimes, FaEnvelope } from 'react-icons/fa';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -117,7 +118,7 @@ const PatientDashboard = () => {
         setProfileLoading(true);
         try {
             const { data } = await axios.put('/api/patients/profile', patientInfo);
-            alert('Profile updated successfully!');
+            toast.success('Profile updated successfully!');
             // Update auth context
             const storedUser = JSON.parse(sessionStorage.getItem('userInfo'));
             if (storedUser) {
@@ -132,7 +133,7 @@ const PatientDashboard = () => {
                 setUser(updatedUser);
             }
         } catch (err) {
-            alert('Failed to update profile: ' + (err.response?.data?.message || err.message));
+            toast.error('Failed to update profile: ' + (err.response?.data?.message || err.message));
         } finally {
             setProfileLoading(false);
         }
@@ -160,7 +161,7 @@ const PatientDashboard = () => {
             form.submit();
         } catch (err) {
             console.error("Payment initiation failed:", err);
-            alert("Payment initiation failed. Please try again.");
+            toast.error('Payment initiation failed. Please try again.');
             setPaymentLoading(null);
         }
     };
@@ -180,7 +181,7 @@ const PatientDashboard = () => {
             }
         } catch (err) {
             console.error("Khalti initiation failed:", err);
-            alert("Khalti initiation failed. Please try again.");
+            toast.error('Khalti initiation failed. Please try again.');
             setPaymentLoading(null);
         }
     };
@@ -193,14 +194,14 @@ const PatientDashboard = () => {
                 appointmentId: reviewModal.appointmentId,
                 ...reviewForm
             });
-            alert('Review submitted successfully!');
+            toast.success('Review submitted successfully!');
             setReviewModal({ isOpen: false, appointmentId: null });
             setReviewForm({ rating: 5, title: '', comment: '' });
             // Optionally refresh appointments
             const { data: apptData } = await axios.get('/api/appointments/my');
             setAppointments(apptData);
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to submit review');
+            toast.error(err.response?.data?.message || 'Failed to submit review');
         } finally {
             setReviewSubmitting(false);
         }
@@ -315,6 +316,12 @@ const PatientDashboard = () => {
                                                         }`}>
                                                         {appt.status}
                                                     </span>
+                                                    {/* Show "Awaiting Doctor" when paid but still pending */}
+                                                    {appt.status === 'Pending' && appt.paymentStatus === 'Paid' && (
+                                                        <span className="status-pill bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-black tracking-widest animate-pulse">
+                                                            ⏳ Awaiting Doctor
+                                                        </span>
+                                                    )}
                                                     {appt.status === 'Completed' && (
                                                         appt.reviewSubmitted ? (
                                                             <span className="text-[10px] font-black uppercase text-healsync-mint mt-4 flex items-center gap-1 opacity-70">
@@ -329,9 +336,13 @@ const PatientDashboard = () => {
                                                             </button>
                                                         )
                                                     )}
-                                                    {appt.paymentStatus === 'Paid' ? (
+                                                    {appt.paymentStatus === 'Refunded' ? (
+                                                        <span className="status-pill bg-green-50 text-green-600 border border-green-200 font-black text-[10px] tracking-widest mt-2">
+                                                            💳 REFUNDED
+                                                        </span>
+                                                    ) : appt.paymentStatus === 'Paid' ? (
                                                         <span className="status-pill bg-healsync-indigo/10 text-healsync-indigo font-black text-[10px] tracking-widest mt-2">
-                                                            PAID
+                                                            ✅ PAID
                                                         </span>
                                                     ) : (appt.status === 'Completed' || appt.status === 'Cancelled') ? (
                                                         <span className="status-pill bg-gray-100 text-gray-500 font-black text-[10px] tracking-widest mt-2">

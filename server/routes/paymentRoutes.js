@@ -6,7 +6,8 @@ const {
     verifyEsewaPayment,
     verifyEsewaPaymentCallback,
     verifyKhaltiPayment,
-    confirmStripePayment
+    confirmStripePayment,
+    handleEsewaFailure
 } = require('../controllers/paymentController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -17,6 +18,8 @@ router.post('/khalti/initiate', protect, initiateKhaltiPayment);
 router.post('/khalti/verify', protect, verifyKhaltiPayment);
 router.post('/esewa/initiate', protect, initiateEsewaPayment);
 router.get('/esewa/verify', verifyEsewaPaymentCallback);
+router.get('/esewa/failure', handleEsewaFailure);
+router.post('/esewa/verify', verifyEsewaPayment);
 router.post('/stripe/confirm', protect, confirmStripePayment);
 
 module.exports = router;

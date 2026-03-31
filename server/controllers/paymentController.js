@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const Appointment = require('../models/Appointment');
 const User = require('../models/User');
 const { sendEmail } = require('../config/sendEmail');
+const { createNotification } = require('./notificationController');
 
 // Khalti Configuration
 const KHALTI_SECRET_KEY = process.env.KHALTI_SECRET_KEY || 'test_secret_key';
@@ -90,6 +91,7 @@ const verifyKhaltiPayment = async (req, res) => {
             } else {
                 const appointment = await Appointment.findById(appointmentId);
                 if (appointment) {
+                    // Keep status as 'Pending' — doctor must explicitly Accept/Reject
                     appointment.paymentStatus = 'Paid';
                     appointment.paymentMethod = 'Khalti';
                     await appointment.save();
@@ -98,17 +100,24 @@ const verifyKhaltiPayment = async (req, res) => {
             }
 
             if (entityData) {
-                // Send confirmation email
                 const user = await User.findById(entityData.user);
-                await sendEmail({
-                    to: user.email,
-                    subject: 'Payment Successful',
-                    html: `
-                        <h2>Payment Successful via Khalti!</h2>
-                        <p>Your ${entityData.name} has been confirmed.</p>
-                        <p>Amount Paid: Rs. ${entityData.amount}</p>
-                    `
-                });
+                if (user) {
+                    // Send Email
+                    await sendEmail({
+                        to: user.email,
+                        subject: 'Payment Successful — Awaiting Doctor Confirmation',
+                        html: `<h2>Payment Successful via Khalti!</h2><p>Your payment of Rs. ${entityData.amount} has been received. Your appointment request has been sent to the doctor and is awaiting their confirmation.</p>`
+                    });
+
+                    // Database Notification
+                    await createNotification(
+                        user._id,
+                        'payment',
+                        'Payment Successful',
+                        `Payment of Rs. ${entityData.amount} via Khalti was successful. Your appointment is now awaiting doctor's confirmation.`,
+                        { type, id: appointmentId }
+                    );
+                }
             }
 
             res.json({ success: true, message: 'Payment verified successfully' });
@@ -131,25 +140,25 @@ const initiateEsewaPayment = async (req, res) => {
 
         const frontendUrl = getFrontendUrl();
         const transactionId = `TXN_${type}_${Date.now()}_${entityId}`;
-        const successUrl = `${frontendUrl}/api/payments/esewa/verify`;
-        const failureUrl = `${frontendUrl}/payment-failed`;
+        const successUrl = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/payments/esewa/verify`;
+        const failureUrl = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/payments/esewa/failure?oid=${entityId}&type=${type}`;
 
         let formData;
 
         if (ESEWA_GATEWAY_URL.includes('v2')) {
-            // eSewa v2 format
-            // Message string needs total_amount,transaction_uuid,product_code
-            const message = `total_amount=${amount},transaction_uuid=${transactionId},product_code=${ESEWA_MERCHANT_ID}`;
+            // eSewa v2 requires total_amount to be string with decimal (e.g., "100.0")
+            const formattedTotal = Number(amount).toFixed(1);
+            const message = `total_amount=${formattedTotal},transaction_uuid=${transactionId},product_code=${ESEWA_MERCHANT_ID}`;
             const hash = crypto.createHmac('sha256', ESEWA_SECRET_KEY).update(message).digest('base64');
 
             formData = {
                 amount: amount,
-                tax_amount: 0,
-                total_amount: amount,
+                tax_amount: "0",
+                total_amount: formattedTotal,
                 transaction_uuid: transactionId,
                 product_code: ESEWA_MERCHANT_ID,
-                product_service_charge: 0,
-                product_delivery_charge: 0,
+                product_service_charge: "0",
+                product_delivery_charge: "0",
                 success_url: successUrl,
                 failure_url: failureUrl,
                 signed_field_names: 'total_amount,transaction_uuid,product_code',
@@ -208,6 +217,7 @@ const verifyEsewaPayment = async (req, res) => {
             } else {
                 const appointment = await Appointment.findById(oid);
                 if (appointment) {
+                    // Keep status as 'Pending' — doctor must explicitly Accept/Reject
                     appointment.paymentStatus = 'Paid';
                     appointment.paymentMethod = 'eSewa';
                     await appointment.save();
@@ -219,9 +229,18 @@ const verifyEsewaPayment = async (req, res) => {
                 const user = await User.findById(entityData.user);
                 await sendEmail({
                     to: user.email,
-                    subject: 'Payment Successful',
-                    html: `<h2>Success!</h2><p>Your payment for ${entityData.name} has been verified via eSewa. Amount: Rs. ${entityData.amount}</p>`
+                    subject: 'Payment Successful — Awaiting Doctor Confirmation',
+                    html: `<h2>Payment Received via eSewa!</h2><p>Your payment of Rs. ${entityData.amount} has been received. Your appointment is awaiting the doctor's confirmation.</p>`
                 });
+
+                // Database Notification for patient
+                await createNotification(
+                    user._id,
+                    'payment',
+                    'Payment Successful',
+                    `Payment of Rs. ${entityData.amount} via eSewa was successful. Your appointment is awaiting the doctor's confirmation.`,
+                    { type, id: oid }
+                );
             }
 
             res.json({ success: true, message: 'Payment verified successfully' });
@@ -443,7 +462,23 @@ const verifyEsewaPaymentCallback = async (req, res) => {
             if (type === 'order') {
                 await Order.findByIdAndUpdate(oid, { isPaid: true, paidAt: Date.now(), status: 'Processing' });
             } else {
-                await Appointment.findByIdAndUpdate(oid, { paymentStatus: 'Paid', paymentMethod: 'eSewa' });
+                // Keep status as 'Pending' — doctor must explicitly Accept/Reject
+                const updatedAppt = await Appointment.findById(oid).populate('patient');
+                if (updatedAppt) {
+                    await createNotification(
+                        updatedAppt.patient._id,
+                        'payment',
+                        'Payment Successful',
+                        `Payment of Rs. ${amt} via eSewa was successful. Your appointment is awaiting the doctor's confirmation.`,
+                        { type, id: oid }
+                    );
+                }
+                
+                await Appointment.findByIdAndUpdate(oid, { 
+                    paymentStatus: 'Paid', 
+                    paymentMethod: 'eSewa'
+                    // status intentionally NOT changed — remains 'Pending' for doctor to confirm
+                });
             }
             
             // If it's an API call (from frontend), return JSON
@@ -460,11 +495,31 @@ const verifyEsewaPaymentCallback = async (req, res) => {
             return res.redirect(`${frontendUrl}/payment-verification?gateway=esewa&status=failure&oid=${oid}`);
         }
     } catch (error) {
-        if (req.headers.accept && req.headers.accept.includes('application/json')) {
-            return res.status(500).json({ message: error.message });
-        }
         const frontendUrl = getFrontendUrl();
         return res.redirect(`${frontendUrl}/payment-verification?gateway=esewa&status=error&error=${encodeURIComponent(error.message)}`);
+    }
+};
+
+const handleEsewaFailure = async (req, res) => {
+    try {
+        const { oid, type } = req.query;
+        const frontendUrl = getFrontendUrl();
+
+        if (type === 'appointment' && oid) {
+            const appointment = await Appointment.findById(oid);
+            if (appointment && appointment.paymentStatus === 'Pending') {
+                const Doctor = require('../models/Doctor');
+                // Decrement totalAppointments before deletion
+                await Doctor.findByIdAndUpdate(appointment.doctor, { $inc: { totalAppointments: -1 } });
+                await Appointment.findByIdAndDelete(oid);
+            }
+        }
+        // No specific handling for 'order' failure for now (might just keep it as unpaid)
+
+        return res.redirect(`${frontendUrl}/payment-verification?gateway=esewa&status=failure&oid=${oid}`);
+    } catch (error) {
+        console.error("eSewa Failure Handler Error:", error);
+        return res.redirect(`${getFrontendUrl()}/dashboard`);
     }
 };
 
@@ -474,6 +529,7 @@ module.exports = {
     initiateEsewaPayment,
     verifyEsewaPayment,
     verifyEsewaPaymentCallback,
+    handleEsewaFailure, // Export failure handler
     createStripePaymentIntent,
     confirmStripePayment,
     processRefund
