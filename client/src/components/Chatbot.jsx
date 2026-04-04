@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { FaRobot, FaTimes, FaPaperPlane, FaChevronDown } from 'react-icons/fa';
+import { FaRobot, FaTimes, FaPaperPlane, FaChevronDown, FaUser } from 'react-icons/fa';
+import { useAuth } from '../context/AuthContext';
 
 const Chatbot = () => {
     const [isOpen, setIsOpen] = useState(false);
+    const { user } = useAuth();
     const [messages, setMessages] = useState([
         { text: "Hello! I'm your HealSync Assistant. How can I help you today?", sender: 'bot' }
     ]);
@@ -19,20 +21,33 @@ const Chatbot = () => {
         scrollToBottom();
     }, [messages]);
 
-    const handleSend = async () => {
-        if (!input.trim()) return;
+    const handleSend = async (customMessage) => {
+        const msgText = customMessage || input;
+        if (!msgText.trim()) return;
 
-        const userMsg = { text: input, sender: 'user' };
+        const userMsg = { text: msgText, sender: 'user' };
         setMessages(prev => [...prev, userMsg]);
-        setInput('');
+        if (!customMessage) setInput('');
         setLoading(true);
 
         try {
-            const { data } = await axios.post('/api/chatbot', { message: input });
-            const botMsg = { text: data.reply, sender: 'bot' };
+            const { data } = await axios.post('/api/chatbot', { 
+                message: msgText,
+                userId: user?._id 
+            });
+            
+            // Fix: The backend returns 'message', not 'reply'
+            const botMsg = { 
+                text: data.message || "I'm not sure how to help with that. Could you try rephrasing?", 
+                sender: 'bot',
+                suggestions: data.suggestions || []
+            };
             setMessages(prev => [...prev, botMsg]);
         } catch (err) {
-            setMessages(prev => [...prev, { text: "Sorry, I'm having trouble connecting. Please try again later.", sender: 'bot' }]);
+            setMessages(prev => [...prev, { 
+                text: "Sorry, I'm having trouble connecting. Please try again later.", 
+                sender: 'bot' 
+            }]);
         } finally {
             setLoading(false);
         }
@@ -67,23 +82,52 @@ const Chatbot = () => {
                     </header>
 
                     {/* Messages */}
-                    <div className="flex-grow p-6 overflow-y-auto space-y-4 bg-[#f9f9fb]">
+                    <div className="flex-grow p-6 overflow-y-auto space-y-6 bg-slate-50/50">
                         {messages.map((msg, idx) => (
-                            <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[80%] p-4 rounded-2xl text-[13px] font-medium leading-relaxed shadow-sm ${msg.sender === 'user'
-                                    ? 'bg-healsync-indigo text-white rounded-tr-none'
-                                    : 'bg-white text-[#111827] border border-healsync-border rounded-tl-none'
+                            <div key={idx} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} animate-fade-in`}>
+                                <div className={`flex items-start gap-2 max-w-[85%] ${msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                    {/* Avatar */}
+                                    <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs shadow-sm ${
+                                        msg.sender === 'user' ? 'bg-healsync-violet text-white' : 'bg-healsync-indigo text-white'
                                     }`}>
-                                    {msg.text}
+                                        {msg.sender === 'user' ? (user?.image ? <img src={user.image} alt="" className="w-full h-full rounded-full object-cover" /> : <FaUser />) : <FaRobot />}
+                                    </div>
+
+                                    {/* Bubble */}
+                                    <div className={`p-4 rounded-2xl text-[14px] leading-relaxed shadow-md border transition-all ${
+                                        msg.sender === 'user'
+                                            ? 'bg-gradient-to-br from-healsync-indigo to-healsync-violet text-white rounded-tr-none border-transparent'
+                                            : 'bg-white text-slate-800 border-slate-100 rounded-tl-none font-medium'
+                                    }`}>
+                                        {msg.text}
+                                    </div>
                                 </div>
+
+                                {/* Suggestions */}
+                                {msg.sender === 'bot' && msg.suggestions?.length > 0 && (
+                                    <div className="mt-3 flex flex-wrap gap-2 ml-10">
+                                        {msg.suggestions.map((suggestion, sIdx) => (
+                                            <button
+                                                key={sIdx}
+                                                onClick={() => handleSend(suggestion)}
+                                                className="px-3 py-1.5 bg-white border border-healsync-indigo/30 text-healsync-indigo text-[11px] font-bold rounded-full hover:bg-healsync-indigo hover:text-white transition-all shadow-sm"
+                                            >
+                                                {suggestion}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         ))}
                         {loading && (
-                            <div className="flex justify-start">
-                                <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-healsync-border shadow-sm flex gap-1">
-                                    <div className="w-1.5 h-1.5 bg-healsync-grey rounded-full animate-bounce"></div>
-                                    <div className="w-1.5 h-1.5 bg-healsync-grey rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                                    <div className="w-1.5 h-1.5 bg-healsync-grey rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                            <div className="flex items-start gap-2 animate-fade-in">
+                                <div className="w-8 h-8 rounded-full bg-healsync-indigo text-white flex items-center justify-center text-xs shadow-sm">
+                                    <FaRobot />
+                                </div>
+                                <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-slate-100 shadow-md flex gap-1.5 items-center">
+                                    <div className="w-1.5 h-1.5 bg-healsync-indigo rounded-full animate-bounce [animation-duration:800ms]"></div>
+                                    <div className="w-1.5 h-1.5 bg-healsync-indigo rounded-full animate-bounce [animation-delay:200ms] [animation-duration:800ms]"></div>
+                                    <div className="w-1.5 h-1.5 bg-healsync-indigo rounded-full animate-bounce [animation-delay:400ms] [animation-duration:800ms]"></div>
                                 </div>
                             </div>
                         )}

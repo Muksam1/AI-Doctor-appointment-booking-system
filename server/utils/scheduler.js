@@ -2,7 +2,7 @@ const cron = require('node-cron');
 const Appointment = require('../models/Appointment');
 const Doctor = require('../models/Doctor');
 const User = require('../models/User');
-const { sendEmail } = require('../config/sendEmail');
+const sendEmail = require('../config/sendEmail');
 const { createNotification } = require('../controllers/notificationController');
 
 /**

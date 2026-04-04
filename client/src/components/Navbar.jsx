@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { useTheme } from '../context/ThemeContext';
-import { FaUserCircle, FaBars, FaTimes, FaBell, FaRegBell, FaSun, FaMoon } from 'react-icons/fa';
+import { FaUserCircle, FaBars, FaTimes, FaBell, FaRegBell, FaSun, FaMoon, FaCalendarAlt, FaComments, FaStar, FaInfoCircle, FaFileAlt, FaCircle } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
@@ -107,15 +107,22 @@ const Navbar = () => {
         // Mark as read
         await markNotificationRead(notif._id || notif.id);
 
-        // Navigate based on notification type
+        const role = user?.role;
+
+        // Navigate based on notification type and user role
         if (notif.type === 'appointment') {
-            navigate('/dashboard?tab=care');
+            if (role === 'doctor') navigate('/dashboard?tab=appointments');
+            else if (role === 'admin') navigate('/dashboard?tab=appointments');
+            else navigate('/dashboard?tab=care');
         } else if (notif.type === 'payment') {
-            navigate('/dashboard?tab=care');
+            if (role === 'doctor') navigate('/dashboard?tab=appointments'); // Doctors see payments in appt list
+            else if (role === 'admin') navigate('/dashboard?tab=stats');
+            else navigate('/dashboard?tab=care');
         } else if (notif.type === 'chat' || notif.type === 'consultation') {
             navigate('/consult');
         } else if (notif.type === 'review') {
-            navigate('/dashboard?tab=care');
+            if (role === 'doctor') navigate('/dashboard?tab=feedback');
+            else navigate('/dashboard?tab=care');
         } else if (notif.type === 'system' || notif.type === 'admin') {
             navigate('/dashboard');
         } else {
@@ -124,6 +131,26 @@ const Navbar = () => {
 
         // Close dropdown
         setNotifOpen(false);
+    };
+
+    const getNotificationIcon = (type) => {
+        switch (type) {
+            case 'appointment': return <FaCalendarAlt className="text-healsync-violet" />;
+            case 'payment': return <FaFileAlt className="text-healsync-mint" />;
+            case 'chat':
+            case 'consultation': return <FaComments className="text-healsync-indigo" />;
+            case 'review': return <FaStar className="text-amber-400" />;
+            case 'system':
+            case 'admin': return <FaInfoCircle className="text-healsync-grey" />;
+            default: return <FaBell className="text-healsync-violet/70" />;
+        }
+    };
+
+    const formatNotifDate = (date) => {
+        const d = new Date(date);
+        const datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const timePart = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        return `${datePart} • ${timePart}`;
     };
 
 
@@ -263,31 +290,91 @@ const Navbar = () => {
                                         {notifOpen ? <FaBell className="text-healsync-indigo text-lg" /> : <FaRegBell className="text-healsync-grey text-lg" />}
                                     </button>
                                     {notifOpen && (
-                                        <div className="absolute right-0 mt-2 w-80 bg-white border border-healsync-border rounded-2xl shadow-2xl overflow-hidden z-50">
-                                            <div className="flex items-center justify-between px-4 py-3 bg-healsync-indigo text-white">
-                                                <span className="text-sm font-black">Notifications</span>
-                                                <div className="flex gap-3">
-                                                    <button onClick={markAllNotificationsRead} className="text-[11px] opacity-80 hover:opacity-100 uppercase tracking-widest">Read All</button>
-                                                    <button onClick={clearAllNotifications} className="text-[11px] opacity-80 hover:opacity-100 text-red-200 hover:text-red-100 uppercase tracking-widest">Clear All</button>
+                                        <div className="absolute right-0 mt-2 w-96 bg-white border border-healsync-border rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in zoom-in duration-200">
+                                            {/* Header */}
+                                            <div className="flex items-center justify-between px-5 py-4 border-b border-healsync-border bg-white">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-base font-black text-[#111827]">Notifications</span>
+                                                    {unreadCount > 0 && (
+                                                        <span className="px-2 py-0.5 bg-healsync-indigo/10 text-healsync-indigo text-[10px] font-black rounded-full border border-healsync-indigo/20">
+                                                            {unreadCount}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex gap-4">
+                                                    <button 
+                                                        onClick={markAllNotificationsRead} 
+                                                        className="text-[12px] font-bold text-healsync-indigo hover:text-healsync-violet transition-colors"
+                                                    >
+                                                        Mark all as read
+                                                    </button>
+                                                    {notifications.length > 0 && (
+                                                        <button 
+                                                            onClick={clearAllNotifications} 
+                                                            className="text-[12px] font-bold text-red-500 hover:text-red-600 transition-colors"
+                                                        >
+                                                            Clear All
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <div className="max-h-64 overflow-y-auto">
+
+                                            {/* List */}
+                                            <div className="max-h-[400px] overflow-y-auto no-scrollbar">
                                                 {notifications.length === 0 ? (
-                                                    <div className="p-4 text-sm text-healsync-grey">No new notifications</div>
+                                                    <div className="p-10 flex flex-col items-center justify-center text-center">
+                                                        <div className="w-16 h-16 bg-healsync-bg rounded-2xl flex items-center justify-center mb-4">
+                                                            <FaRegBell className="text-healsync-grey text-2xl opacity-30" />
+                                                        </div>
+                                                        <p className="text-sm text-[#111827] font-black">All caught up!</p>
+                                                        <p className="text-xs text-healsync-grey mt-1">No new notifications at the moment.</p>
+                                                    </div>
                                                 ) : (
-                                                    notifications.map(notif => (
+                                                    notifications.map((notif, idx) => (
                                                         <button
                                                             key={notif._id || notif.id}
                                                             onClick={() => handleNotificationClick(notif)}
-                                                            className={`w-full text-left px-4 py-3 border-b border-healsync-border hover:bg-healsync-bg transition-all ${notif.read ? 'opacity-70' : 'bg-healsync-bg/50'}`}
+                                                            className={`w-full text-left px-5 py-4 flex gap-4 transition-all hover:bg-healsync-bg relative ${idx !== notifications.length - 1 ? 'border-b border-healsync-border/60' : ''} ${!notif.read ? 'bg-healsync-indigo/[0.02]' : ''}`}
                                                         >
-                                                            <p className="text-sm text-[#111827] font-bold">{notif.title || notif.message}</p>
-                                                            <p className="text-[11px] text-healsync-grey mt-1">{notif.message && notif.title ? notif.message : ''}</p>
-                                                            <p className="text-[10px] text-healsync-grey mt-1">{new Date(notif.createdAt || notif.timestamp).toLocaleString()}</p>
+                                                            <div className="shrink-0 mt-1">
+                                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${!notif.read ? 'bg-white shadow-sm border border-healsync-border' : 'opacity-60'}`}>
+                                                                    {getNotificationIcon(notif.type)}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex-1 pr-2">
+                                                                <p className={`text-sm leading-snug ${notif.read ? 'text-[#374151] font-medium' : 'text-[#111827] font-bold'}`}>
+                                                                    {notif.title}
+                                                                </p>
+                                                                {notif.message && notif.message !== notif.title && (
+                                                                    <p className="text-[11px] text-healsync-grey mt-0.5 line-clamp-2 leading-relaxed italic">
+                                                                        {notif.message}
+                                                                    </p>
+                                                                )}
+                                                                <p className="text-[10px] text-healsync-grey/60 mt-1.5 flex items-center gap-1.5 font-bold uppercase tracking-wider">
+                                                                    {formatNotifDate(notif.createdAt || notif.timestamp)}
+                                                                </p>
+                                                            </div>
+                                                            {!notif.read && (
+                                                                <div className="absolute right-5 top-1/2 -translate-y-1/2">
+                                                                    <FaCircle className="text-[8px] text-healsync-indigo" />
+                                                                </div>
+                                                            )}
                                                         </button>
                                                     ))
                                                 )}
                                             </div>
+                                            
+                                            {/* Footer - Optional view all */}
+                                            {notifications.length > 5 && (
+                                                <div className="p-3 bg-healsync-bg/30 border-t border-healsync-border text-center">
+                                                    <button 
+                                                        onClick={() => { navigate('/dashboard'); setNotifOpen(false); }}
+                                                        className="text-[11px] font-black text-healsync-grey hover:text-healsync-indigo transition-colors uppercase tracking-widest"
+                                                    >
+                                                        View All History
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

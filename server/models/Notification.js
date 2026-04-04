@@ -51,9 +51,8 @@ notificationSchema.index({ user: 1, read: 1, createdAt: -1 });
 notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 // Expiration handled by TTL index in MongoDB
-notificationSchema.pre('save', function(next) {
-    next();
-});
+// Pre-save hook removed as it was causing 'next is not a function' error and was only calling next() with no other logic.
+
 
 const Notification = mongoose.model('Notification', notificationSchema);
 

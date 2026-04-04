@@ -2,7 +2,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const Appointment = require('../models/Appointment');
 const User = require('../models/User');
-const { sendEmail } = require('../config/sendEmail');
+const sendEmail = require('../config/sendEmail');
 const { createNotification } = require('./notificationController');
 
 // Khalti Configuration

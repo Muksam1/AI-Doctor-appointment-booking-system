@@ -3,7 +3,7 @@ const Doctor = require('../models/Doctor');
 const Patient = require('../models/Patient');
 const Appointment = require('../models/Appointment');
 const Review = require('../models/Review');
-const { sendEmail } = require('../config/sendEmail');
+const sendEmail = require('../config/sendEmail');
 const { createNotification } = require('./notificationController');
 
 // @desc    Get admin dashboard stats

@@ -29,6 +29,16 @@ const healthKnowledge = {
             severity: 'severe',
             advice: 'URGENT: Seek immediate medical attention. Could indicate serious respiratory issues.',
             specialists: ['Pulmonology', 'Emergency Medicine']
+        },
+        cold: {
+            severity: 'mild',
+            advice: 'Rest, stay hydrated, use saline nasal drops. Most colds get better in 7-10 days.',
+            specialists: ['General Medicine']
+        },
+        flu: {
+            severity: 'moderate',
+            advice: 'Rest, fluids, and fever-reducing medicines. Watch for serious complications like difficulty breathing.',
+            specialists: ['General Medicine', 'Internal Medicine']
         }
     },
     first_aid: {
@@ -68,7 +78,12 @@ const processChatbotMessage = async (req, res) => {
         };
 
         // Health symptom analysis
-        if (lowerMessage.includes('symptom') || lowerMessage.includes('feeling') || lowerMessage.includes('pain')) {
+        if (lowerMessage.includes('symptom') || 
+            lowerMessage.includes('feeling') || 
+            lowerMessage.includes('pain') || 
+            lowerMessage.includes('sick') || 
+            lowerMessage.includes('ill') || 
+            lowerMessage.includes('well')) {
             response = analyzeSymptoms(lowerMessage);
         }
         // First aid queries

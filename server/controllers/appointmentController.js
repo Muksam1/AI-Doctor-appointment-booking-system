@@ -1,7 +1,7 @@
 const Appointment = require('../models/Appointment');
 const Doctor = require('../models/Doctor');
 const User = require('../models/User');
-const { sendEmail } = require('../config/sendEmail');
+const sendEmail = require('../config/sendEmail');
 const { createNotification } = require('./notificationController');
 
 // Helper to parse date consistently (forcing start of day as UTC midnight)
@@ -229,7 +229,7 @@ const bookAppointment = async (req, res) => {
         await createNotification(
             doctor.user._id,
             'appointment',
-            'New Appointment Request',
+            `New Request: ${bookingDate.toDateString()} at ${timeSlot}`,
             `You have a new appointment request from ${patient.name} for ${bookingDate.toDateString()} at ${timeSlot}`,
             { appointment: appointment._id }
         );
@@ -238,7 +238,7 @@ const bookAppointment = async (req, res) => {
         await createNotification(
             req.user._id,
             'appointment',
-            'Appointment Booked Successfully',
+            `Booked: ${bookingDate.toDateString()} at ${timeSlot}`,
             `Your appointment with Dr. ${doctor.user.name} has been successfully booked for ${bookingDate.toDateString()} at ${timeSlot}.`,
             { appointment: appointment._id }
         );
@@ -352,10 +352,10 @@ const updateAppointmentStatus = async (req, res) => {
             let patientMessage = `Your appointment status has been updated to: ${status}`;
 
             if (status === 'Confirmed') {
-                patientTitle = 'Appointment Accepted ✅';
-                patientMessage = `Dr. ${doctor.user.name} has accepted your appointment request for ${new Date(appointment.date).toDateString()} at ${appointment.timeSlot}.`;
+                patientTitle = `Accepted: ${new Date(appointment.date).toDateString()} • ${appointment.timeSlot} ✅`;
+                patientMessage = `Dr. ${doctor.user.name} has accepted your appointment request.`;
             } else if (status === 'Cancelled') {
-                patientTitle = 'Appointment Rejected';
+                patientTitle = `Rejected: ${new Date(appointment.date).toDateString()} • ${appointment.timeSlot} ❌`;
                 patientMessage = `Dr. ${doctor.user.name} has rejected your appointment request.`;
 
                 // If patient already paid — trigger refund
@@ -364,14 +364,14 @@ const updateAppointmentStatus = async (req, res) => {
                     await appointment.save();
 
                     patientTitle = 'Appointment Rejected — Refund Initiated';
-                    patientMessage = `Dr. ${doctor.user.name} has rejected your appointment. Since you already paid, a refund of Rs. ${appointment.fee} will be processed to your original payment method within 3–5 business days.`;
+                    patientMessage = `Dr. ${doctor.user.name} has rejected your appointment for ${new Date(appointment.date).toDateString()} at ${appointment.timeSlot}. Since you already paid, a refund of Rs. ${appointment.fee} will be processed to your original payment method within 3–5 business days.`;
 
                     // Extra dedicated refund notification
                     await createNotification(
                         appointment.patient,
                         'payment',
-                        'Refund Initiated 💳',
-                        `A refund of Rs. ${appointment.fee} has been initiated for your cancelled appointment with Dr. ${doctor.user.name}. It will arrive within 3–5 business days.`,
+                        `Refund: Rs. ${appointment.fee} for ${new Date(appointment.date).toDateString()} 💳`,
+                        `A refund of Rs. ${appointment.fee} has been initiated for your cancelled appointment on ${new Date(appointment.date).toDateString()} with Dr. ${doctor.user.name}. It will arrive within 3–5 business days.`,
                         { appointment: appointment._id }
                     );
                 }
@@ -544,7 +544,7 @@ const rescheduleAppointment = async (req, res) => {
         await createNotification(
             doctor.user._id,
             'appointment',
-            'Appointment Rescheduled',
+            `Rescheduled: ${newDate.toDateString()} at ${timeSlot} 🔄`,
             `Patient ${req.user.name} has rescheduled their appointment to ${newDate.toDateString()} at ${timeSlot}.`,
             { appointment: appointment._id }
         );
