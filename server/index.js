@@ -1,11 +1,12 @@
+const dotenv = require('dotenv');
+dotenv.config();
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const dotenv = require('dotenv');
 const cors = require('cors');
+const path = require('path');
 const { setIO } = require('./socket');
-
-dotenv.config();
 
 const connectDB = require('./config/db');
 const seedAdmin = require('./config/seedAdmin');
@@ -25,15 +26,15 @@ const patientRoutes = require('./routes/patientRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 
-connectDB().then(() => seedAdmin());
-
-const app = express();
-
 const { initReminders } = require('./utils/scheduler');
+
+// Connect to database and seed admin
+connectDB().then(() => seedAdmin());
 
 // Start automated background tasks
 initReminders();
 
+// Normalize origin helper
 const normalizeOrigin = (value) => {
     if (!value) return '';
     try {
@@ -51,24 +52,27 @@ const allowedOrigins = [
     .map(normalizeOrigin)
     .filter(Boolean);
 
+console.log('Allowed Origins:', allowedOrigins);
+
 const corsOptions = {
     origin: (origin, callback) => {
         const normalizedOrigin = normalizeOrigin(origin);
         if (!origin || allowedOrigins.includes(normalizedOrigin)) {
             return callback(null, true);
         }
+        console.log('CORS blocked origin:', origin);
         return callback(new Error('Not allowed by CORS'));
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true
 };
 
+const app = express();
+
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: corsOptions
 });
-
-const path = require('path');
 
 // Expose io instance for other modules (controllers) to emit events
 setIO(io);
@@ -166,7 +170,6 @@ io.on('connection', (socket) => {
                     { isRead: true }
                 );
             }
-            // Optional: emit 'readStatusUpdate' to sender
             io.to(senderId).emit('messageRead', { receiverId });
         } catch (error) {
             console.error("Error marking message as read:", error);
@@ -174,7 +177,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        // Log can be removed for cleaner production logs
+        // Clean disconnect
     });
 });
 
@@ -187,5 +190,5 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-    console.log(`Server running in mode on port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });
