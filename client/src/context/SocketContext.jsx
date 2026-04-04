@@ -17,7 +17,13 @@ export const SocketProvider = ({ children }) => {
             const socketUrl =
                 import.meta.env.VITE_SOCKET_URL ||
                 import.meta.env.VITE_API_URL ||
-                'http://localhost:5000';
+                (import.meta.env.DEV ? 'http://localhost:5000' : '');
+
+            if (!socketUrl) {
+                console.error('Missing VITE_SOCKET_URL or VITE_API_URL in production environment.');
+                return undefined;
+            }
+
             const newSocket = io(socketUrl);
             setSocketInstance(newSocket);
             newSocket.emit('join', user._id);

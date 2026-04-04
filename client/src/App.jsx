@@ -24,7 +24,11 @@ import ApplyDoctor from './pages/ApplyDoctor';
 import axios from 'axios';
 
 // Base API configuration
-axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const apiBaseUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : '');
+if (!apiBaseUrl && import.meta.env.PROD) {
+  console.error('Missing VITE_API_URL in production environment.');
+}
+axios.defaults.baseURL = apiBaseUrl;
 
 function App() {
   return (
