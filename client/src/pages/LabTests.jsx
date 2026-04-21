@@ -389,7 +389,7 @@ const LabTests = () => {
                 </div>
             )}
             <header className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-8 border-b border-healsync-border pb-10">
-                <div className="space-y-4 flex-grow max-w-3xl">
+                <div className="space-y-4 grow max-w-3xl">
                     <div className="flex items-center gap-3 text-healsync-mint font-black text-sm uppercase tracking-widest bg-healsync-mint/5 px-6 py-2.5 rounded-full w-fit border border-healsync-mint/10">
                         <FaShoppingCart className="text-lg" />
                         HealSync Pharmacy
@@ -452,15 +452,15 @@ const LabTests = () => {
 
                 {/* Product Grid */}
                 <div className="grow">
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-8">
                         {filteredProducts.map(product => {
                             const pId = product._id || product.id;
                             const qty = cart[pId] || 0;
                             return (
-                                <div key={pId} className="healsync-card p-6 flex flex-col group h-full">
+                                <div key={pId} className="healsync-card p-6 flex flex-col group h-full w-full max-w-95">
                                     <div className="relative aspect-square rounded-4xl bg-healsync-bg overflow-hidden flex items-center justify-center border border-healsync-border mb-6">
                                         {product.image ? (
-                                            <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" />
+                                            <img src={product.image} alt={product.name} className="w-full h-full object-contain p-3 group-hover:scale-105 transition-all duration-700" />
                                         ) : (
                                             <div className="text-7xl opacity-20 group-hover:scale-110 transition-all duration-700">
                                                 {product.icon === 'FaCapsules' ? <FaCapsules /> :

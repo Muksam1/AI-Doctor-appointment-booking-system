@@ -384,6 +384,7 @@ const processRefund = async (req, res) => {
 // @access  Public
 const verifyEsewaPaymentCallback = async (req, res) => {
     try {
+        const frontendUrl = getFrontendUrl();
         let { oid, amt, refId } = req.query; 
         let type = req.query.type || 'appointment';
         const data = req.query.data;
@@ -412,7 +413,6 @@ const verifyEsewaPaymentCallback = async (req, res) => {
         }
 
         if (!oid || !amt || !refId) {
-             const frontendUrl = getFrontendUrl();
              // Include debug info if parameters are missing
              const debugInfo = `oid=${oid}&amt=${amt}&refId=${refId}&hasData=${!!data}`;
              return res.redirect(`${frontendUrl}/payment-verification?status=error&message=MissingParameters&debug=${encodeURIComponent(debugInfo)}`);
@@ -457,6 +457,7 @@ const verifyEsewaPaymentCallback = async (req, res) => {
         }
 
         if (isSuccess) {
+            console.log(`[TEST 4.2.5 SUCCESS] eSewa Payment Verified for ${type}: ${oid}`);
             // Update database
             const Order = require('../models/Order');
             if (type === 'order') {
@@ -489,12 +490,14 @@ const verifyEsewaPaymentCallback = async (req, res) => {
             // If it's a redirect from eSewa, go to the frontend verification page
             return res.redirect(`${frontendUrl}/payment-verification?gateway=esewa&oid=${oid}&amt=${amt}&refId=${refId}&status=success&type=${type}`);
         } else {
+            console.warn(`[TEST 4.2.5 FAILURE] SECURITY ALERT: eSewa Signature Mismatch or Invalid Transaction. Data Tampering Detected.`);
             if (req.headers.accept && req.headers.accept.includes('application/json')) {
-                return res.status(400).json({ message: 'Payment verification failed' });
+                return res.status(400).json({ message: 'Payment verification failed: Signature Mismatch' });
             }
-            return res.redirect(`${frontendUrl}/payment-verification?gateway=esewa&status=failure&oid=${oid}`);
+            return res.redirect(`${frontendUrl}/payment-verification?gateway=esewa&status=failure&oid=${oid}&error=SignatureMismatch`);
         }
     } catch (error) {
+        console.error(`[TEST 4.2.5 ERROR] Server Error during eSewa verification: ${error.message}`);
         const frontendUrl = getFrontendUrl();
         return res.redirect(`${frontendUrl}/payment-verification?gateway=esewa&status=error&error=${encodeURIComponent(error.message)}`);
     }

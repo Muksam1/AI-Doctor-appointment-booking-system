@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import { useSocket } from '../../context/SocketContext';
@@ -11,6 +11,15 @@ import {
 } from 'react-icons/fa';
 
 const AdminDashboard = () => {
+    const initialProductState = {
+        name: '',
+        price: '',
+        category: 'Medicines',
+        description: '',
+        icon: 'FaCapsules',
+        countInStock: 10,
+        image: ''
+    };
     const [searchParams] = useSearchParams();
     const { socket } = useSocket();
     const [stats, setStats] = useState({ users: {}, appointments: {}, revenue: {} });
@@ -20,13 +29,14 @@ const AdminDashboard = () => {
     const [userPage, setUserPage] = useState(1);
     const [userPages, setUserPages] = useState(1);
     const [products, setProducts] = useState([]);
-    const [newProduct, setNewProduct] = useState({ name: '', price: '', category: 'Medicines', description: '', icon: 'FaCapsules', countInStock: 10 });
+    const [newProduct, setNewProduct] = useState(initialProductState);
     const [editingProduct, setEditingProduct] = useState(null);
     const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'stats');
     const [actionLoading, setActionLoading] = useState(null);
     const [appointments, setAppointments] = useState([]);
     const [appointmentPage, setAppointmentPage] = useState(1);
     const [appointmentPages, setAppointmentPages] = useState(1);
+    const productImageInputRef = useRef(null);
 
     // Sync tab from URL whenever navbar link changes
     useEffect(() => {
@@ -128,10 +138,44 @@ const AdminDashboard = () => {
                 setProducts([...products, data]);
                 toast.success('Product added successfully!');
             }
-            setNewProduct({ name: '', price: '', category: 'Medicines', description: '', icon: 'FaCapsules', countInStock: 10 });
+            setNewProduct(initialProductState);
+            if (productImageInputRef.current) productImageInputRef.current.value = '';
         } catch (err) {
-            toast.error(editingProduct ? 'Error updating product' : 'Error adding product');
+            toast.error(err.response?.data?.message || (editingProduct ? 'Error updating product' : 'Error adding product'));
         }
+    };
+
+    const handleProductImageUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            toast.error('Please upload a valid image file.');
+            return;
+        }
+
+        const uploadProductImage = async () => {
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+                const { data } = await axios.post('/api/products/upload-image', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+
+                const apiBaseUrl = axios.defaults.baseURL || `${window.location.protocol}//${window.location.hostname}:5000`;
+                const normalizedImageUrl = data.imageUrl.startsWith('http')
+                    ? data.imageUrl
+                    : `${apiBaseUrl.replace(/\/$/, '')}${data.imageUrl}`;
+
+                setNewProduct(prev => ({ ...prev, image: normalizedImageUrl }));
+                toast.success('Product image uploaded.');
+            } catch (err) {
+                toast.error(err.response?.data?.message || 'Failed to upload product image');
+                if (productImageInputRef.current) productImageInputRef.current.value = '';
+            }
+        };
+
+        uploadProductImage();
     };
 
     const handleEditProduct = (product) => {
@@ -142,7 +186,8 @@ const AdminDashboard = () => {
             category: product.category,
             description: product.description,
             icon: product.icon || 'FaCapsules',
-            countInStock: product.countInStock || 10
+            countInStock: product.countInStock || 10,
+            image: product.image || ''
         });
         // Scroll to the form
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -190,8 +235,8 @@ const AdminDashboard = () => {
     return (
         <div className="space-y-12">
             <header className="border-b border-healsync-border pb-8">
-                <h1 className="text-4xl font-black text-[#111827] tracking-tighter uppercase">Command Center</h1>
-                <p className="text-healsync-grey font-medium">Platform overview and management console</p>
+                <h1 className="text-3xl md:text-4xl font-black text-[#111827] tracking-tighter uppercase">Command Center</h1>
+                <p className="text-healsync-grey font-medium text-sm md:text-base">Platform overview and management console</p>
                 {safePendingDoctors.length > 0 && activeTab !== 'doctors' && (
                     <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm font-bold">
                         <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse inline-block" />
@@ -677,13 +722,43 @@ const AdminDashboard = () => {
                                     <button
                                         onClick={() => {
                                             setEditingProduct(null);
-                                            setNewProduct({ name: '', price: '', category: 'Medicines', description: '', icon: 'FaCapsules', countInStock: 10 });
+                                            setNewProduct(initialProductState);
+                                            if (productImageInputRef.current) productImageInputRef.current.value = '';
                                         }}
                                         className="text-xs uppercase font-black text-red-500 hover:text-red-700"
                                     > Cancel </button>
                                 )}
                             </h3>
                             <form onSubmit={handleAddProduct} className="space-y-4">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-healsync-grey uppercase tracking-widest">Product Image</label>
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            ref={productImageInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleProductImageUpload}
+                                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium"
+                                        />
+                                        {newProduct.image && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setNewProduct(prev => ({ ...prev, image: '' }));
+                                                    if (productImageInputRef.current) productImageInputRef.current.value = '';
+                                                }}
+                                                className="px-3 py-2 text-[10px] uppercase font-black text-red-500 hover:text-red-700 border border-red-200 rounded-lg"
+                                            >
+                                                Remove
+                                            </button>
+                                        )}
+                                    </div>
+                                    {newProduct.image && (
+                                        <div className="w-full h-32 rounded-xl overflow-hidden border border-healsync-border bg-healsync-bg p-2">
+                                            <img src={newProduct.image} alt="Product Preview" className="w-full h-full object-contain" />
+                                        </div>
+                                    )}
+                                </div>
                                 <input
                                     type="text" placeholder="Product Name" required
                                     className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-medium focus:outline-none focus:border-healsync-indigo transition-all"
@@ -738,7 +813,11 @@ const AdminDashboard = () => {
                                 <div key={product._id} className="p-6 bg-white border border-healsync-border rounded-3xl flex justify-between items-center group hover:shadow-md transition-all">
                                     <div className="flex gap-6 items-center">
                                         <div className="w-14 h-14 rounded-2xl bg-healsync-bg flex items-center justify-center text-2xl text-healsync-indigo border border-healsync-border shadow-inner">
-                                            <FaBoxOpen />
+                                            {product.image ? (
+                                                <img src={product.image} alt={product.name} className="w-full h-full object-contain rounded-2xl p-1" />
+                                            ) : (
+                                                <FaBoxOpen />
+                                            )}
                                         </div>
                                         <div>
                                             <h4 className="font-black text-[#111827]">{product.name}</h4>

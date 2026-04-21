@@ -188,30 +188,30 @@ const Navbar = () => {
     ];
 
     const linkClass = (active) =>
-        `px-5 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${active
+        `px-4 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap ${active
             ? 'bg-white text-healsync-indigo shadow-sm'
             : 'text-healsync-grey hover:text-healsync-indigo hover:bg-white/50'
         }`;
 
     return (
-        <div className="fixed top-0 left-0 right-0 z-100 px-4 py-4 md:px-8 transition-all duration-500">
+        <div className="fixed top-0 left-0 right-0 z-100 px-4 py-3 md:px-6 transition-all duration-500">
             <nav className={`w-full transition-all duration-500 rounded-4xl ${isScrolled
-                ? 'bg-white/90 backdrop-blur-xl shadow-healsync border border-white/40 py-3 px-6'
-                : 'bg-white/50 backdrop-blur-md border border-white/20 py-5 px-8'
+            ? 'bg-white/90 backdrop-blur-xl shadow-healsync border border-white/40 py-2.5 px-5'
+            : 'bg-white/50 backdrop-blur-md border border-white/20 py-3.5 px-6'
                 }`}>
                 <div className="flex items-center justify-between gap-4">
                     {/* Logo */}
                     <Link to="/" className="flex items-center gap-4 group shrink-0">
-                        <div className="w-12 h-12 bg-linear-to-br from-healsync-indigo to-healsync-violet rounded-2xl flex items-center justify-center shadow-healsync group-hover:scale-110 transition-transform duration-500 rotate-6 group-hover:rotate-0">
-                            <span className="text-white text-2xl font-black">H</span>
+                        <div className="w-10 h-10 bg-linear-to-br from-healsync-indigo to-healsync-violet rounded-2xl flex items-center justify-center shadow-healsync group-hover:scale-110 transition-transform duration-500 rotate-6 group-hover:rotate-0">
+                            <span className="text-white text-xl font-black">H</span>
                         </div>
-                        <span className="text-3xl font-black text-[#111827] tracking-tighter">
+                        <span className="text-[2rem] font-black text-[#111827] tracking-tighter">
                             Heal<span className="text-healsync-indigo">Sync</span>
                         </span>
                     </Link>
 
                     {/* Desktop Navigation */}
-                    <div className="hidden lg:flex items-center gap-2 bg-healsync-bg/50 p-1.5 rounded-2xl border border-healsync-border flex-1 justify-center">
+                    <div className="hidden xl:flex items-center gap-2 bg-healsync-bg/50 p-1.5 rounded-2xl border border-healsync-border flex-1 justify-center">
                         {user?.role === 'admin' ? (
                             // ── Admin Links ──
                             adminLinks.map(({ label, tab }) => (
@@ -251,7 +251,7 @@ const Navbar = () => {
                     </div>
 
                     {/* Auth Actions */}
-                    <div className="hidden lg:flex items-center gap-4 shrink-0">
+                    <div className="hidden xl:flex items-center gap-4 shrink-0">
                         {user ? (
                             <div className="flex items-center gap-4">
                                 <button
@@ -381,7 +381,15 @@ const Navbar = () => {
 
                                 <Link to="/dashboard" className="flex items-center gap-4 p-1.5 pr-6 bg-healsync-bg rounded-full border border-healsync-border hover:bg-white transition-all group">
                                     <div className="w-12 h-12 rounded-full bg-healsync-indigo flex items-center justify-center text-white shadow-healsync group-hover:scale-105 transition-transform">
-                                        <FaUserCircle className="text-3xl" />
+                                        {user.image ? (
+                                            <img
+                                                src={user.image}
+                                                alt={user.name || 'Profile'}
+                                                className="w-full h-full object-cover rounded-full"
+                                            />
+                                        ) : (
+                                            <FaUserCircle className="text-3xl" />
+                                        )}
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="text-sm font-black text-[#111827] line-clamp-1">{user.name}</span>
@@ -423,7 +431,7 @@ const Navbar = () => {
                     {/* Mobile Menu Toggle */}
                     <button
                         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                        className="lg:hidden p-3 bg-healsync-bg rounded-2xl text-healsync-indigo"
+                        className="xl:hidden p-3 bg-healsync-bg rounded-2xl text-healsync-indigo"
                     >
                         {isMobileMenuOpen ? <FaTimes /> : <FaBars />}
                     </button>
@@ -431,7 +439,7 @@ const Navbar = () => {
 
                 {/* Mobile Menu Overlay */}
                 {isMobileMenuOpen && (
-                    <div className="lg:hidden mt-4 p-4 bg-white rounded-3xl border border-healsync-border shadow-2xl animate-in slide-in-from-top-4 duration-300">
+                    <div className="xl:hidden mt-4 p-4 bg-white rounded-3xl border border-healsync-border shadow-2xl animate-in slide-in-from-top-4 duration-300">
                         <div className="flex flex-col gap-2">
                             {user?.role === 'admin' ? (
                                 adminLinks.map(({ label, tab }) => (

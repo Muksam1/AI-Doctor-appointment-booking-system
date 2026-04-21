@@ -39,3 +39,6 @@ logs/
 tmp/
 .temp/
 .cache/
+
+# Runtime uploads
+server/uploads/

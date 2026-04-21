@@ -211,7 +211,7 @@ const PatientDashboard = () => {
         <div className="space-y-12">
             <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                 <div className="space-y-4">
-                    <div className="flex items-center gap-3 text-healsync-indigo font-black text-xs uppercase tracking-widest bg-healsync-indigo/5 px-4 py-2 rounded-full w-fit border border-healsync-indigo/10">
+                    <div className="flex items-center gap-3 text-healsync-indigo font-black text-[10px] md:text-xs uppercase tracking-widest bg-healsync-indigo/5 px-4 py-2 rounded-full w-fit border border-healsync-indigo/10">
                         <span className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-healsync-indigo opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-healsync-indigo"></span>
@@ -219,12 +219,12 @@ const PatientDashboard = () => {
                         Patient Dashboard
                     </div>
                     <div>
-                        <h1 className="text-4xl font-black text-[#111827] tracking-tighter">My Care Journey</h1>
-                        <p className="text-healsync-grey font-medium">Manage your health appointments and medical history</p>
+                        <h1 className="text-3xl md:text-4xl font-black text-[#111827] tracking-tighter">My Care Journey</h1>
+                        <p className="text-healsync-grey font-medium text-sm md:text-base">Manage your health appointments and medical history</p>
                     </div>
 
                     {/* Navigation Tabs */}
-                    <div className="flex bg-healsync-bg p-1.5 rounded-2xl w-fit border border-healsync-border shadow-inner">
+                    <div className="flex bg-healsync-bg p-1.5 rounded-2xl w-full md:w-fit border border-healsync-border shadow-inner overflow-x-auto no-scrollbar">
                         <button
                             onClick={() => {
                                 setActiveTab('care');
@@ -232,7 +232,7 @@ const PatientDashboard = () => {
                                 url.searchParams.set('tab', 'care');
                                 window.history.pushState({}, '', url);
                             }}
-                            className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'care' ? 'bg-white text-healsync-indigo shadow-md' : 'text-healsync-grey hover:text-healsync-indigo'}`}
+                            className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${activeTab === 'care' ? 'bg-white text-healsync-indigo shadow-md' : 'text-healsync-grey hover:text-healsync-indigo'}`}
                         >
                             <FaCalendarAlt /> My Care
                         </button>
@@ -243,17 +243,17 @@ const PatientDashboard = () => {
                                 url.searchParams.set('tab', 'profile');
                                 window.history.pushState({}, '', url);
                             }}
-                            className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'profile' ? 'bg-white text-healsync-indigo shadow-md' : 'text-healsync-grey hover:text-healsync-indigo'}`}
+                            className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${activeTab === 'profile' ? 'bg-white text-healsync-indigo shadow-md' : 'text-healsync-grey hover:text-healsync-indigo'}`}
                         >
                             <FaUserCircle /> My Profile
                         </button>
                     </div>
                 </div>
-                <div className="flex gap-4">
-                    <Link to="/lab-tests" className="btn-secondary px-6 py-3 border border-healsync-border rounded-xl font-bold flex items-center gap-2 hover:bg-gray-50 transition-all">
+                <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+                    <Link to="/lab-tests" className="btn-secondary px-6 py-3 border border-healsync-border rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-50 transition-all text-sm md:text-base">
                         <FaClipboardList /> Shop Pharmacy
                     </Link>
-                    <Link to="/doctors" className="btn-primary shadow-healsync hover:shadow-healsync-hover">
+                    <Link to="/doctors" className="btn-primary shadow-healsync hover:shadow-healsync-hover text-center py-3 text-sm md:text-base">
                         Book New Consultation
                     </Link>
                 </div>

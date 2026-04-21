@@ -19,8 +19,24 @@ const PaymentVerification = () => {
 
     useEffect(() => {
         const verifyPayment = async () => {
+            const statusParam = searchParams.get('status');
+            const errorParam = searchParams.get('error');
+
+            if (statusParam === 'success') {
+                setStatus('success');
+                setMessage('Payment verified successfully! Your appointment is now awaiting the doctor\'s confirmation.');
+                return;
+            }
+
+            if (statusParam === 'failure' || statusParam === 'error') {
+                setStatus('error');
+                setMessage(errorParam === 'SignatureMismatch' 
+                    ? 'SECURITY ALERT: Payment verification failed due to data tampering or signature mismatch.' 
+                    : 'Payment verification failed. Please try again.');
+                return;
+            }
+
             try {
-                // Determine what we are verifying: Appointment or Order
                 const entityId = appointmentId || orderId;
                 const entityType = appointmentId ? 'appointment' : 'order';
 
@@ -30,14 +46,8 @@ const PaymentVerification = () => {
                         setStatus('success');
                         setMessage('Payment verified via Khalti! Your appointment is now awaiting the doctor\'s confirmation.');
                     }
-                } else if (gateway === 'esewa' && oid && amt && refId) {
-                    const { data } = await axios.get('/api/payments/esewa/verify', {
-                        params: { oid, amt, refId, type: entityType }
-                    });
-                    if (data.success) {
-                        setStatus('success');
-                        setMessage('Payment verified via eSewa! Your appointment is now awaiting the doctor\'s confirmation.');
-                    }
+                } else if (gateway === 'esewa') {
+                    // Handled by query params status check above
                 } else {
                     setStatus('error');
                     setMessage('Missing valid payment parameters.');
@@ -50,7 +60,7 @@ const PaymentVerification = () => {
         };
 
         verifyPayment();
-    }, [gateway, appointmentId, orderId, pidx, oid, amt, refId]);
+    }, [gateway, appointmentId, orderId, pidx, searchParams, navigate]);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-healsync-bg p-6">

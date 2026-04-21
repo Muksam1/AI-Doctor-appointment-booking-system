@@ -330,19 +330,19 @@ const DoctorDashboard = () => {
             {/* Header */}
             <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                 <div className="space-y-3">
-                    <div className="flex items-center gap-4 text-healsync-indigo font-black text-sm uppercase tracking-widest bg-healsync-indigo/5 px-6 py-2.5 rounded-full w-fit border border-healsync-indigo/10">
+                    <div className="flex items-center gap-4 text-healsync-indigo font-black text-xs md:text-sm uppercase tracking-widest bg-healsync-indigo/5 px-4 md:px-6 py-2 md:py-2.5 rounded-full w-fit border border-healsync-indigo/10">
                         <FaStethoscope className="animate-pulse text-lg" />
                         Professional Portal
                     </div>
-                    <h1 className="text-5xl font-black text-[#111827] tracking-tighter">Doctor Console</h1>
-                    <p className="text-healsync-grey font-medium text-lg">Manage your HealSync presence and patient schedule</p>
+                    <h1 className="text-3xl md:text-5xl font-black text-[#111827] tracking-tighter">Doctor Console</h1>
+                    <p className="text-healsync-grey font-medium text-base md:text-lg">Manage your HealSync presence and patient schedule</p>
                 </div>
 
                 {/* Tab Switcher */}
-                <div className="flex gap-2 bg-healsync-bg p-1.5 rounded-2xl border border-healsync-border">
+                <div className="flex gap-2 bg-healsync-bg p-1.5 rounded-2xl border border-healsync-border overflow-x-auto no-scrollbar max-w-full">
                     <button
                         onClick={() => setActiveTab('join')}
-                        className={`px-6 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 ${activeTab === 'join' ? 'bg-white text-healsync-indigo shadow-sm' : 'text-healsync-grey hover:text-healsync-indigo'}`}
+                        className={`px-6 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${activeTab === 'join' ? 'bg-white text-healsync-indigo shadow-sm' : 'text-healsync-grey hover:text-healsync-indigo'}`}
                     >
                         <FaRocket /> Join Today
                     </button>
@@ -350,7 +350,7 @@ const DoctorDashboard = () => {
                         onClick={() => applicationStatus === 'approved' && setActiveTab('appointments')}
                         disabled={applicationStatus !== 'approved'}
                         title={applicationStatus !== 'approved' ? 'Appointments locked until your application is approved' : ''}
-                        className={`px-6 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 ${
+                        className={`px-6 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
                             applicationStatus !== 'approved'
                                 ? 'text-healsync-grey opacity-50 cursor-not-allowed'
                                 : activeTab === 'appointments' ? 'bg-white text-healsync-indigo shadow-sm' : 'text-healsync-grey hover:text-healsync-indigo'
@@ -364,21 +364,21 @@ const DoctorDashboard = () => {
                     {applicationStatus === 'approved' && (
                         <button
                             onClick={() => setActiveTab('feedback')}
-                            className={`px-6 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 ${activeTab === 'feedback' ? 'bg-white text-healsync-indigo shadow-sm' : 'text-healsync-grey hover:text-healsync-indigo'}`}
+                            className={`px-6 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${activeTab === 'feedback' ? 'bg-white text-healsync-indigo shadow-sm' : 'text-healsync-grey hover:text-healsync-indigo'}`}
                         >
                             <FaStar className="text-amber-400" /> Feedback
                         </button>
                     )}
                     <button
                         onClick={() => setActiveTab('profile')}
-                        className={`px-6 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 ${activeTab === 'profile' ? 'bg-white text-healsync-indigo shadow-sm' : 'text-healsync-grey hover:text-healsync-indigo'}`}
+                        className={`px-6 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${activeTab === 'profile' ? 'bg-white text-healsync-indigo shadow-sm' : 'text-healsync-grey hover:text-healsync-indigo'}`}
                     >
                         <FaUserCog /> Profile
                     </button>
                     {applicationStatus === 'approved' && (
                         <button
                             onClick={() => setActiveTab('availability')}
-                            className={`px-6 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 ${activeTab === 'availability' ? 'bg-white text-healsync-indigo shadow-sm' : 'text-healsync-grey hover:text-healsync-indigo'}`}
+                            className={`px-6 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${activeTab === 'availability' ? 'bg-white text-healsync-indigo shadow-sm' : 'text-healsync-grey hover:text-healsync-indigo'}`}
                         >
                             <FaClock /> Availability
                         </button>
@@ -387,7 +387,7 @@ const DoctorDashboard = () => {
                         <button
                             onClick={refreshStatus}
                             title="Check if your application has been approved"
-                            className="px-4 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 text-healsync-indigo bg-healsync-indigo/10 hover:bg-healsync-indigo/20"
+                            className="px-4 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 text-healsync-indigo bg-healsync-indigo/10 hover:bg-healsync-indigo/20 shrink-0 whitespace-nowrap"
                         >
                             <FaSync /> Refresh
                         </button>
