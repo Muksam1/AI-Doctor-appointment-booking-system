@@ -70,7 +70,6 @@ const Login = () => {
                         useOneTap
                         shape="pill"
                         text="signin"
-                        width="100%"
                     />
                 </div>
                 

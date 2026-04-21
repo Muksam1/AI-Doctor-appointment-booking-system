@@ -65,7 +65,6 @@ const Register = () => {
                         useOneTap
                         shape="pill"
                         text="continue_with"
-                        width="100%"
                     />
                 </div>
                 
